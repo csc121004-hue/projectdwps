@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { SCHOOL_INFO } from '../data/schoolData';
-import { SchoolLogo } from './SchoolLogo';
 
 interface SchoolAdminLoginModalProps {
   isOpen: boolean;
@@ -13,8 +12,9 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
   onClose,
   onLoginSuccess,
 }) => {
-  const [email, setEmail] = useState('admin@dwpsballabgarh.in');
-  const [password, setPassword] = useState('dwps@2026');
+  const [loginId, setLoginId] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -27,11 +27,18 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
     setIsLoading(true);
 
     setTimeout(() => {
-      if (email.trim() && password.trim()) {
+      const trimmedId = loginId.trim();
+      const trimmedPassword = password.trim();
+
+      // Authorized credential verification: ID = Rahul@dwps, Password = dwps#2026
+      if (
+        trimmedId.toLowerCase() === 'rahul@dwps' &&
+        trimmedPassword === 'dwps#2026'
+      ) {
         const user = {
-          name: email.includes('director') ? 'Mr. Rahul Chaudhary' : 'Admissions Desk (Subhash Colony)',
-          role: email.includes('director') ? 'Founder / Director' : 'Chief Admissions Officer',
-          email: email.trim(),
+          name: 'Mr. Rahul Chaudhary',
+          role: 'School Director / Administrator',
+          email: 'Rahul@dwps',
         };
         if (rememberMe) {
           localStorage.setItem('dwps_admin_session', JSON.stringify(user));
@@ -41,19 +48,9 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
         onClose();
       } else {
         setIsLoading(false);
-        setErrorMsg('Please enter a valid official staff email and password.');
+        setErrorMsg('Galat ID ya Password. Kripya sahi credentials darj karein (Invalid ID or Password).');
       }
-    }, 500);
-  };
-
-  const handleQuickLogin = (role: 'director' | 'counselor') => {
-    if (role === 'director') {
-      setEmail('director@dwpsballabgarh.in');
-      setPassword('dwps@director2026');
-    } else {
-      setEmail('admissions@dwpsballabgarh.in');
-      setPassword('counselor@2026');
-    }
+    }, 450);
   };
 
   return (
@@ -69,7 +66,7 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
         <div className="bg-[#021936] text-white p-6 relative">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10"
+            className="absolute top-4 right-4 text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 cursor-pointer"
             aria-label="Close"
           >
             <span className="material-symbols-outlined text-xl">close</span>
@@ -101,69 +98,83 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
         <div className="p-6 space-y-4">
           {errorMsg && (
             <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
-              <span className="material-symbols-outlined text-base">error</span>
+              <span className="material-symbols-outlined text-base flex-shrink-0">error</span>
               <span>{errorMsg}</span>
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-3.5">
+          <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-[#021936] uppercase tracking-wider mb-1">
-                Institutional Email ID
+              <label className="block text-xs font-bold text-[#021936] uppercase tracking-wider mb-1.5">
+                Institutional Login ID
               </label>
               <div className="relative">
                 <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
-                  mail
+                  person
                 </span>
                 <input
-                  type="email"
+                  type="text"
                   required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@dwpsballabgarh.in"
-                  className="w-full h-11 pl-10 pr-3 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-semibold text-[#021936] focus:border-[#904d00] outline-none transition-all"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck="false"
+                  value={loginId}
+                  onChange={(e) => setLoginId(e.target.value)}
+                  placeholder="Enter ID"
+                  className="w-full h-11 pl-10 pr-3 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-semibold text-[#021936] focus:border-[#904d00] focus:bg-white outline-none transition-all"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[#021936] uppercase tracking-wider mb-1">
-                Secret Access Password
+              <label className="block text-xs font-bold text-[#021936] uppercase tracking-wider mb-1.5">
+                Password
               </label>
               <div className="relative">
                 <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
                   lock
                 </span>
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full h-11 pl-10 pr-3 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-semibold text-[#021936] focus:border-[#904d00] outline-none transition-all"
+                  placeholder="Enter Password"
+                  className="w-full h-11 pl-10 pr-10 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-semibold text-[#021936] focus:border-[#904d00] focus:bg-white outline-none transition-all"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                  tabIndex={-1}
+                >
+                  <span className="material-symbols-outlined text-lg">
+                    {showPassword ? 'visibility_off' : 'visibility'}
+                  </span>
+                </button>
               </div>
             </div>
 
             <div className="flex items-center justify-between text-xs pt-1">
-              <label className="flex items-center gap-2 text-slate-600 cursor-pointer">
+              <label className="flex items-center gap-2 text-slate-600 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="accent-[#904d00] rounded"
+                  className="accent-[#904d00] rounded cursor-pointer"
                 />
-                <span>Keep me signed in</span>
+                <span>Remember me</span>
               </label>
               <span className="text-[#904d00] text-[11px] font-semibold">
-                Session 2026-27 Active
+                Authorized Personnel Only
               </span>
             </div>
 
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full h-11 bg-[#904d00] hover:bg-[#B45309] disabled:opacity-75 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
+              className="w-full h-11 bg-[#904d00] hover:bg-[#B45309] disabled:opacity-75 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer mt-3"
             >
               {isLoading ? (
                 <>
@@ -172,37 +183,12 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
                 </>
               ) : (
                 <>
-                  <span className="material-symbols-outlined text-base">verified_user</span>
+                  <span className="material-symbols-outlined text-base">lock_open</span>
                   <span>Sign In to School Dashboard</span>
                 </>
               )}
             </button>
           </form>
-
-          {/* Quick Demo Login Credentials Bar */}
-          <div className="pt-3 border-t border-slate-100">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
-              ⚡ Quick Access (Demo Roles):
-            </span>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('counselor')}
-                className="p-2 rounded-lg bg-[#F2F8FD] hover:bg-slate-100 border border-[#dce3ec] text-left text-[11px] transition-colors cursor-pointer"
-              >
-                <div className="font-bold text-[#021936]">Admissions Desk</div>
-                <div className="text-slate-500 text-[10px]">admissions@dwps...</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('director')}
-                className="p-2 rounded-lg bg-[#F2F8FD] hover:bg-slate-100 border border-[#dce3ec] text-left text-[11px] transition-colors cursor-pointer"
-              >
-                <div className="font-bold text-[#021936]">Director Office</div>
-                <div className="text-slate-500 text-[10px]">director@dwps...</div>
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Footer */}
