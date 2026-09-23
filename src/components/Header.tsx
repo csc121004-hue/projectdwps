@@ -124,31 +124,41 @@ export const Header: React.FC<HeaderProps> = ({
             Apply 2026-27
           </button>
 
-          {/* Inquiries Desk Trigger */}
-          <button
-            onClick={onOpenInquiriesDrawer}
-            title="Admissions Helpdesk Log"
-            className="p-2 text-[#1a2e4c] hover:bg-[#eef4fd] rounded-lg transition-colors relative"
-            aria-label="View Inquiries"
-          >
-            <span className="material-symbols-outlined text-xl">folder_shared</span>
-            {inquiryCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-[#B91C1C] text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
-                {inquiryCount}
-              </span>
-            )}
-          </button>
+          {/* Inquiries Desk Trigger - ONLY visible when school staff is logged in */}
+          {isAdminLoggedIn && (
+            <button
+              onClick={onOpenInquiriesDrawer}
+              title="Admissions Helpdesk Log (School Staff Only)"
+              className="p-2 text-[#1a2e4c] hover:bg-[#eef4fd] rounded-lg transition-colors relative cursor-pointer"
+              aria-label="View Inquiries Desk"
+            >
+              <span className="material-symbols-outlined text-xl">folder_shared</span>
+              {inquiryCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-[#B91C1C] text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
+                  {inquiryCount}
+                </span>
+              )}
+            </button>
+          )}
         </div>
 
         {/* Mobile Menu Button */}
         <div className="flex sm:hidden items-center gap-2">
-          <button
-            onClick={onOpenInquiriesDrawer}
-            className="p-1.5 text-[#021936] rounded-lg hover:bg-slate-100"
-            aria-label="Inquiries desk"
-          >
-            <span className="material-symbols-outlined text-xl">folder_shared</span>
-          </button>
+          {isAdminLoggedIn && (
+            <button
+              onClick={onOpenInquiriesDrawer}
+              className="p-1.5 text-[#021936] rounded-lg hover:bg-slate-100 relative cursor-pointer"
+              aria-label="Inquiries desk (Staff)"
+              title="Admissions Helpdesk Log"
+            >
+              <span className="material-symbols-outlined text-xl">folder_shared</span>
+              {inquiryCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-[#B91C1C] text-white text-[9px] w-3.5 h-3.5 rounded-full flex items-center justify-center font-bold">
+                  {inquiryCount}
+                </span>
+              )}
+            </button>
+          )}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="p-2 text-[#021936] hover:bg-slate-100 rounded-lg focus:outline-none"
