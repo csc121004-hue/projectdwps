@@ -20,18 +20,66 @@ import { FacilitiesView } from './components/FacilitiesView';
 import { AboutView } from './components/AboutView';
 import { OurTeamView } from './components/OurTeamView';
 import { NewsTicker } from './components/NewsTicker';
-import { GalleryItem, InquiryRecord, INITIAL_INQUIRIES, SCHOOL_INFO } from './data/schoolData';
+import { NewsletterView } from './components/NewsletterView';
+import { SchoolAdminDashboard } from './components/SchoolAdminDashboard';
+import { SchoolAdminLoginModal } from './components/SchoolAdminLoginModal';
+import {
+  GalleryItem,
+  InquiryRecord,
+  NewsletterItem,
+  INITIAL_INQUIRIES,
+  INITIAL_NEWSLETTERS,
+  SCHOOL_INFO
+} from './data/schoolData';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('home');
   const [selectedGalleryItem, setSelectedGalleryItem] = useState<GalleryItem | null>(null);
   const [isTourModalOpen, setIsTourModalOpen] = useState(false);
   const [isInquiriesDrawerOpen, setIsInquiriesDrawerOpen] = useState(false);
-  const [inquiries, setInquiries] = useState<InquiryRecord[]>(INITIAL_INQUIRIES);
+  const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
 
+  // Persistent Inquiries State
+  const [inquiries, setInquiries] = useState<InquiryRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem('dwps_inquiries');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.warn('Failed to parse inquiries from localStorage', e);
+    }
+    return INITIAL_INQUIRIES;
+  });
+
+  // Persistent Newsletters State (Updates go live immediately!)
+  const [newsletters, setNewsletters] = useState<NewsletterItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('dwps_newsletters');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.warn('Failed to parse newsletters from localStorage', e);
+    }
+    return INITIAL_NEWSLETTERS;
+  });
+
+  // Admin User Session State
+  const [adminUser, setAdminUser] = useState<{ name: string; role: string; email: string } | null>(() => {
+    try {
+      const saved = localStorage.getItem('dwps_admin_session');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.warn('Failed to parse admin session', e);
+    }
+    return null;
+  });
+
   const handleNavigate = (screen: ScreenType, sectionId?: string) => {
+    if (screen === 'admin-dashboard' && !adminUser) {
+      setIsAdminLoginOpen(true);
+      return;
+    }
+
     setCurrentScreen(screen);
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
@@ -45,9 +93,65 @@ export default function App() {
     }
   };
 
-  const handleNewInquirySubmitted = (newInquiry: InquiryRecord) => {
-    setInquiries((prev) => [newInquiry, ...prev]);
+  const handleUpdateInquiries = (updated: InquiryRecord[]) => {
+    setInquiries(updated);
+    try {
+      localStorage.setItem('dwps_inquiries', JSON.stringify(updated));
+    } catch (e) {
+      console.warn('Failed to save inquiries to localStorage', e);
+    }
   };
+
+  const handleNewInquirySubmitted = (newInquiry: InquiryRecord) => {
+    const updated = [newInquiry, ...inquiries];
+    handleUpdateInquiries(updated);
+  };
+
+  const handleUpdateNewsletters = (updated: NewsletterItem[]) => {
+    setNewsletters(updated);
+    try {
+      localStorage.setItem('dwps_newsletters', JSON.stringify(updated));
+    } catch (e) {
+      console.warn('Failed to save newsletters to localStorage', e);
+    }
+  };
+
+  const handleAdminLoginSuccess = (user: { name: string; role: string; email: string }) => {
+    setAdminUser(user);
+    setIsAdminLoginOpen(false);
+    setCurrentScreen('admin-dashboard');
+  };
+
+  const handleAdminLogout = () => {
+    localStorage.removeItem('dwps_admin_session');
+    setAdminUser(null);
+    setCurrentScreen('home');
+  };
+
+  // If in School Admin Dashboard mode, render full-screen Admin Suite
+  if (currentScreen === 'admin-dashboard' && adminUser) {
+    return (
+      <>
+        <SchoolAdminDashboard
+          currentUser={adminUser}
+          inquiries={inquiries}
+          newsletters={newsletters}
+          onUpdateInquiries={handleUpdateInquiries}
+          onUpdateNewsletters={handleUpdateNewsletters}
+          onLogout={handleAdminLogout}
+          onBackToWebsite={() => setCurrentScreen('home')}
+        />
+        <SchoolAdminLoginModal
+          isOpen={isAdminLoginOpen}
+          onClose={() => setIsAdminLoginOpen(false)}
+          onLoginSuccess={handleAdminLoginSuccess}
+        />
+      </>
+    );
+  }
+
+  // Active live newsletters for display
+  const latestLiveNewsletter = newsletters.find((n) => n.isLive) || newsletters[0];
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f7f9ff] text-[#151c23]">
@@ -60,6 +164,8 @@ export default function App() {
         onNavigate={handleNavigate}
         onOpenTourModal={() => setIsTourModalOpen(true)}
         onOpenInquiriesDrawer={() => setIsInquiriesDrawerOpen(true)}
+        onOpenAdminLogin={() => setIsAdminLoginOpen(true)}
+        isAdminLoggedIn={!!adminUser}
         inquiryCount={inquiries.length}
       />
 
@@ -133,9 +239,58 @@ export default function App() {
               onBookTourClick={() => setIsTourModalOpen(true)}
             />
 
+            {/* Live Newsletter & Gazette Highlight Card on Homepage */}
+            {latestLiveNewsletter && (
+              <section className="py-12 bg-white border-y border-[#dce3ec]">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-16">
+                  <div className="bg-[#F2F8FD] rounded-3xl border border-[#dce3ec] p-6 sm:p-8 flex flex-col lg:flex-row items-center justify-between gap-6 shadow-xs">
+                    <div className="flex items-start gap-4">
+                      <div className="w-14 h-14 rounded-2xl bg-[#021936] text-[#FDE68A] flex items-center justify-center flex-shrink-0 shadow-md">
+                        <span className="material-symbols-outlined text-2xl">auto_stories</span>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase tracking-wider">
+                            ● Live School Gazette
+                          </span>
+                          <span className="text-xs text-slate-500 font-medium">
+                            {latestLiveNewsletter.edition}
+                          </span>
+                        </div>
+                        <h4 className="text-lg sm:text-xl font-bold font-serif text-[#021936]">
+                          {latestLiveNewsletter.title}
+                        </h4>
+                        <p className="text-xs sm:text-sm text-slate-600 line-clamp-2 max-w-2xl">
+                          {latestLiveNewsletter.summary}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 w-full lg:w-auto">
+                      <button
+                        onClick={() => handleNavigate('newsletters')}
+                        className="w-full lg:w-auto py-3 px-6 rounded-xl bg-[#021936] hover:bg-[#1a2e4c] text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap cursor-pointer"
+                      >
+                        <span>Read Gazette</span>
+                        <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
+
             {/* Campus Visit & Contact Details */}
             <ContactSection />
           </>
+        )}
+
+        {currentScreen === 'newsletters' && (
+          <NewsletterView
+            newsletters={newsletters}
+            onBookTourClick={() => setIsTourModalOpen(true)}
+            onApplyClick={() => handleNavigate('admissions', 'admissions-form')}
+            onOpenAdminLogin={() => setIsAdminLoginOpen(true)}
+          />
         )}
 
         {currentScreen === 'our-team' && (
@@ -216,6 +371,14 @@ export default function App() {
         onNavigate={handleNavigate}
         onOpenPrivacyModal={() => setShowPrivacyModal(true)}
         onOpenTermsModal={() => setShowTermsModal(true)}
+        onOpenAdminLogin={() => setIsAdminLoginOpen(true)}
+      />
+
+      {/* 5. School Staff & Admin Login Modal */}
+      <SchoolAdminLoginModal
+        isOpen={isAdminLoginOpen}
+        onClose={() => setIsAdminLoginOpen(false)}
+        onLoginSuccess={handleAdminLoginSuccess}
       />
 
       {/* 5. Persistent Floating Actions */}

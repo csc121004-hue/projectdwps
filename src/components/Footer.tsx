@@ -6,12 +6,14 @@ interface FooterProps {
   onNavigate: (screen: ScreenType, sectionId?: string) => void;
   onOpenPrivacyModal?: () => void;
   onOpenTermsModal?: () => void;
+  onOpenAdminLogin?: () => void;
 }
 
 export const Footer: React.FC<FooterProps> = ({
   onNavigate,
   onOpenPrivacyModal,
-  onOpenTermsModal
+  onOpenTermsModal,
+  onOpenAdminLogin
 }) => {
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -101,6 +103,15 @@ export const Footer: React.FC<FooterProps> = ({
               </li>
               <li>
                 <button
+                  onClick={() => onNavigate('newsletters')}
+                  className="text-[#8396b9] hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer text-left"
+                >
+                  <span className="material-symbols-outlined text-xs">chevron_right</span>
+                  School Newsletters &amp; Bulletins
+                </button>
+              </li>
+              <li>
+                <button
                   onClick={() => onNavigate('contact', 'contact')}
                   className="text-[#8396b9] hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer text-left"
                 >
@@ -108,6 +119,17 @@ export const Footer: React.FC<FooterProps> = ({
                   Contact Us
                 </button>
               </li>
+              {onOpenAdminLogin && (
+                <li className="pt-1 border-t border-[#1a2e4c]">
+                  <button
+                    onClick={onOpenAdminLogin}
+                    className="text-[#fe932c] hover:underline flex items-center gap-1.5 cursor-pointer text-left font-semibold"
+                  >
+                    <span className="material-symbols-outlined text-xs">lock</span>
+                    Staff &amp; Admin Portal
+                  </button>
+                </li>
+              )}
             </ul>
           </div>
 

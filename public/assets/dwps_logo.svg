@@ -1,0 +1,201 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 560" width="100%" height="100%">
+  <defs>
+    <!-- Gradients for shield borders and ribbon -->
+    <linearGradient id="goldRim" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F7D070"/>
+      <stop offset="50%" stop-color="#D99B26"/>
+      <stop offset="100%" stop-color="#9C6B13"/>
+    </linearGradient>
+
+    <linearGradient id="innerGold" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFF2A8"/>
+      <stop offset="60%" stop-color="#E2A632"/>
+      <stop offset="100%" stop-color="#B87D17"/>
+    </linearGradient>
+
+    <linearGradient id="ribbonGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FCE196"/>
+      <stop offset="70%" stop-color="#EBB24F"/>
+      <stop offset="100%" stop-color="#CF912A"/>
+    </linearGradient>
+
+    <!-- Clip Path for Shield Quarters -->
+    <clipPath id="shieldInnerClip">
+      <path d="M 250 35 C 290 35, 390 45, 405 130 C 405 250, 350 340, 250 415 C 150 340, 95 250, 95 130 C 110 45, 210 35, 250 35 Z" />
+    </clipPath>
+
+    <!-- Drop Shadow Filter -->
+    <filter id="shieldShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#021936" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#shieldShadow)">
+    <!-- Outer Shield Frame Outline -->
+    <path d="M 250 20 C 300 20, 415 32, 432 125 C 432 265, 370 365, 250 445 C 130 365, 68 265, 68 125 C 85 32, 200 20, 250 20 Z"
+          fill="url(#goldRim)" stroke="#8C5C0D" stroke-width="4"/>
+
+    <!-- Middle White Gap -->
+    <path d="M 250 28 C 295 28, 402 38, 418 122 C 418 255, 360 350, 250 428 C 140 350, 82 255, 82 122 C 98 38, 205 28, 250 28 Z"
+          fill="#FFFFFF" />
+
+    <!-- Inner Shield Gold Border -->
+    <path d="M 250 33 C 292 33, 393 43, 408 126 C 408 252, 352 342, 250 418 C 148 342, 92 252, 92 126 C 107 43, 208 33, 250 33 Z"
+          fill="url(#innerGold)" stroke="#A06914" stroke-width="2"/>
+
+    <!-- Quadrants Inner Area (Clipped) -->
+    <g clip-path="url(#shieldInnerClip)">
+      <!-- Top-Left: Navy Blue with Castle -->
+      <rect x="80" y="25" width="170" height="200" fill="#1C385C" />
+      
+      <!-- Top-Right: Warm Amber Gold with Graduation Cap and Open Book -->
+      <rect x="250" y="25" width="170" height="200" fill="#E89B2B" />
+      
+      <!-- Bottom-Left: Crimson Burgundy with Stack of Books -->
+      <rect x="80" y="225" width="170" height="210" fill="#9E2C38" />
+      
+      <!-- Bottom-Right: Soft Teal with Mickey Globe -->
+      <rect x="250" y="225" width="170" height="210" fill="#58A8A1" />
+
+      <!-- Quadrant 1 (Top Left) Art: Fairytale Magic Castle in Soft Teal -->
+      <g transform="translate(130, 68)" fill="#7FD1C8">
+        <!-- Main central keep -->
+        <rect x="30" y="60" width="30" height="60" rx="2"/>
+        <polygon points="30,60 45,20 60,60"/>
+        <!-- Central spire flag -->
+        <line x1="45" y1="20" x2="45" y2="10" stroke="#7FD1C8" stroke-width="2"/>
+        <polygon points="45,10 57,14 45,18" />
+        <!-- Left tower -->
+        <rect x="8" y="75" width="18" height="45"/>
+        <polygon points="6,75 17,45 28,75"/>
+        <line x1="17" y1="45" x2="17" y2="38" stroke="#7FD1C8" stroke-width="1.5"/>
+        <polygon points="17,38 25,41 17,44"/>
+        <!-- Right tower -->
+        <rect x="64" y="75" width="18" height="45"/>
+        <polygon points="62,75 73,45 84,75"/>
+        <line x1="73" y1="45" x2="73" y2="38" stroke="#7FD1C8" stroke-width="1.5"/>
+        <polygon points="73,38 81,41 73,44"/>
+        <!-- Castle arched door and windows -->
+        <path d="M 39 120 L 39 100 Q 45 92 51 100 L 51 120 Z" fill="#1C385C"/>
+        <circle cx="45" cy="75" r="4" fill="#1C385C"/>
+        <rect x="14" y="90" width="6" height="10" rx="3" fill="#1C385C"/>
+        <rect x="70" y="90" width="6" height="10" rx="3" fill="#1C385C"/>
+        <!-- Wall crenellations -->
+        <rect x="23" y="100" width="10" height="20"/>
+        <rect x="58" y="100" width="10" height="20"/>
+      </g>
+
+      <!-- Quadrant 2 (Top Right) Art: Graduation Cap and Open Book -->
+      <g transform="translate(275, 65)">
+        <!-- Graduation Cap (Mortarboard) -->
+        <polygon points="70,25 20,43 70,58 120,43" fill="#1C385C"/>
+        <!-- Skull cap underneath -->
+        <ellipse cx="70" cy="54" rx="26" ry="10" fill="#1C385C"/>
+        <!-- Gold button and tassel -->
+        <circle cx="70" cy="42" r="3.5" fill="#FFE885"/>
+        <path d="M 70 42 Q 105 48 108 72" stroke="#FFE885" stroke-width="2.5" fill="none"/>
+        <polygon points="105,70 111,70 108,82" fill="#FFE885"/>
+
+        <!-- Open Book -->
+        <g transform="translate(18, 72)">
+          <!-- Book outline & spine shadow -->
+          <path d="M 52 46 C 40 40 18 36 0 42 L 0 10 C 18 6 40 10 52 16 C 64 10 86 6 104 10 L 104 42 C 86 36 64 40 52 46 Z"
+                fill="#FFFFFF" stroke="#1C385C" stroke-width="3"/>
+          <path d="M 52 16 L 52 46" stroke="#1C385C" stroke-width="2.5"/>
+          <!-- Text lines on left page -->
+          <line x1="12" y1="18" x2="42" y2="23" stroke="#1C385C" stroke-width="2"/>
+          <line x1="12" y1="26" x2="42" y2="30" stroke="#1C385C" stroke-width="2"/>
+          <line x1="12" y1="33" x2="36" y2="37" stroke="#1C385C" stroke-width="2"/>
+          <!-- Text lines on right page -->
+          <line x1="62" y1="23" x2="92" y2="18" stroke="#1C385C" stroke-width="2"/>
+          <line x1="62" y1="30" x2="92" y2="26" stroke="#1C385C" stroke-width="2"/>
+          <line x1="68" y1="37" x2="92" y2="33" stroke="#1C385C" stroke-width="2"/>
+        </g>
+      </g>
+
+      <!-- Quadrant 3 (Bottom Left) Art: Graduation Cap on Stack of Books -->
+      <g transform="translate(125, 245)">
+        <!-- Stack of 4 Books -->
+        <!-- Book 4 (Bottom) -->
+        <rect x="15" y="105" width="80" height="14" rx="2" fill="#FFFFFF" stroke="#4A1218" stroke-width="2"/>
+        <rect x="12" y="105" width="8" height="14" rx="1" fill="#4A1218"/>
+        <!-- Book 3 -->
+        <rect x="20" y="90" width="72" height="14" rx="2" fill="#FFFFFF" stroke="#4A1218" stroke-width="2"/>
+        <rect x="17" y="90" width="8" height="14" rx="1" fill="#1C385C"/>
+        <!-- Book 2 -->
+        <rect x="25" y="75" width="65" height="14" rx="2" fill="#FFFFFF" stroke="#4A1218" stroke-width="2"/>
+        <rect x="22" y="75" width="7" height="14" rx="1" fill="#D99B26"/>
+        <!-- Book 1 (Top) -->
+        <rect x="30" y="60" width="58" height="14" rx="2" fill="#FFFFFF" stroke="#4A1218" stroke-width="2"/>
+        <rect x="27" y="60" width="7" height="14" rx="1" fill="#4A1218"/>
+
+        <!-- Mortarboard Cap on top of stack -->
+        <g transform="translate(10, 10)">
+          <polygon points="50,22 15,36 50,48 85,36" fill="#FFFFFF" stroke="#4A1218" stroke-width="2.5"/>
+          <ellipse cx="50" cy="45" rx="18" ry="7" fill="#FFFFFF" stroke="#4A1218" stroke-width="2"/>
+          <circle cx="50" cy="35" r="2.5" fill="#E89B2B"/>
+          <path d="M 50 35 Q 72 40 75 56" stroke="#E89B2B" stroke-width="2" fill="none"/>
+        </g>
+      </g>
+
+      <!-- Quadrant 4 (Bottom Right) Art: Mickey Mouse Silhouette with Earth Globe & Meridians -->
+      <g transform="translate(290, 245)">
+        <!-- Outer white Mickey silhouette glow -->
+        <g fill="#FFFFFF" stroke="#25645F" stroke-width="2.5">
+          <!-- Mickey Ears -->
+          <circle cx="28" cy="40" r="24"/>
+          <circle cx="92" cy="40" r="24"/>
+          <!-- Central Mickey Head Globe -->
+          <circle cx="60" cy="78" r="38"/>
+        </g>
+        <!-- Globe Meridian and Parallel lines within face -->
+        <g stroke="#25645F" stroke-width="1.8" fill="none">
+          <!-- Equator line -->
+          <line x1="22" y1="78" x2="98" y2="78"/>
+          <!-- Vertical prime meridian ellipse -->
+          <ellipse cx="60" cy="78" rx="22" ry="38"/>
+          <!-- Latitudinal arcs -->
+          <path d="M 30 60 Q 60 70 90 60"/>
+          <path d="M 30 96 Q 60 86 90 96"/>
+          <!-- Orbiting trajectory ring with navigation arrow -->
+          <ellipse cx="60" cy="78" rx="46" ry="18" stroke="#FFFFFF" stroke-width="2.5" stroke-dasharray="8 4" transform="rotate(-25 60 78)"/>
+          <polygon points="98,58 106,62 101,69" fill="#FFFFFF"/>
+        </g>
+      </g>
+
+      <!-- Inner Cross Dividing Lines (White with gold outline) -->
+      <line x1="250" y1="20" x2="250" y2="440" stroke="#FFFFFF" stroke-width="10"/>
+      <line x1="250" y1="20" x2="250" y2="440" stroke="#8C5C0D" stroke-width="3"/>
+      <line x1="70" y1="225" x2="430" y2="225" stroke="#FFFFFF" stroke-width="10"/>
+      <line x1="70" y1="225" x2="430" y2="225" stroke="#8C5C0D" stroke-width="3"/>
+    </g>
+  </g>
+
+  <!-- Golden Flowing Ribbon Banner at Bottom -->
+  <g transform="translate(0, 400)">
+    <!-- Left Ribbon Tail and Fold -->
+    <path d="M 40 75 L 85 40 L 85 85 L 40 105 L 60 90 Z" fill="#9C6B13" stroke="#684205" stroke-width="2"/>
+    <path d="M 85 40 L 130 55 L 85 85 Z" fill="#B87D17"/>
+
+    <!-- Right Ribbon Tail and Fold -->
+    <path d="M 460 75 L 415 40 L 415 85 L 460 105 L 440 90 Z" fill="#9C6B13" stroke="#684205" stroke-width="2"/>
+    <path d="M 415 40 L 370 55 L 415 85 Z" fill="#B87D17"/>
+
+    <!-- Main Curved Ribbon Front -->
+    <path d="M 75 52 Q 250 15 425 52 L 415 95 Q 250 58 85 95 Z"
+          fill="url(#ribbonGrad)" stroke="#8C5C0D" stroke-width="3" filter="drop-shadow(0px 4px 6px rgba(0,0,0,0.3))"/>
+
+    <!-- School Name on Curved Banner -->
+    <path id="ribbonTextPath" d="M 85 76 Q 250 38 415 76" fill="none" stroke="none"/>
+    <text font-family="'Cinzel', 'Playfair Display', Georgia, serif" font-size="21.5" font-weight="900" fill="#1C385C" letter-spacing="1.2">
+      <textPath href="#ribbonTextPath" startOffset="50%" text-anchor="middle">
+        DISNEY WORLD PUBLIC SCHOOL
+      </textPath>
+    </text>
+
+    <!-- Motto underneath Ribbon -->
+    <text x="250" y="128" text-anchor="middle" font-family="'Lora', Georgia, 'Times New Roman', serif" font-size="20" font-weight="700" fill="#204068" letter-spacing="0.5">
+      Knowledge is Our Magic
+    </text>
+  </g>
+</svg>

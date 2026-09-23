@@ -17,7 +17,26 @@ export interface InquiryRecord {
   grade: string;
   message?: string;
   date: string;
-  status: 'New' | 'Under Review' | 'Tour Scheduled' | 'Admission Offered';
+  status: 'New' | 'Under Review' | 'Contacted' | 'Tour Scheduled' | 'Admission Offered' | 'Enrolled';
+  notes?: string;
+  priority?: 'High' | 'Normal';
+  followUpDate?: string;
+}
+
+export interface NewsletterItem {
+  id: string;
+  title: string;
+  edition: string; // e.g. "Vol. 14 • Spring 2026 Edition"
+  publishDate: string; // e.g. "2026-04-05"
+  category: 'Academics & STEM' | 'Sports & Athletics' | 'Campus Life & Arts' | 'Special Bulletin';
+  coverImageUrl: string;
+  summary: string;
+  content: string;
+  author: string;
+  isLive: boolean; // Controls whether it appears on public website
+  highlights: string[];
+  pdfDownloadUrl?: string;
+  tags?: string[];
 }
 
 export interface TeamMember {
@@ -151,7 +170,7 @@ export const TEAM_MEMBERS: TeamMember[] = [
 ];
 
 export const HOTLINK_IMAGES = {
-  crestLogo: 'https://lh3.googleusercontent.com/aida/AEtjO1UQ3w09uav_0ZXAojAeTJwQTJy9NJI-WBq4cnif3IMa_DlSv4nG2pds4L3gHqJYcczn8SNjVtltvyMc2TbZ-jFzL_uWTAT37SNI_s_237BC5tikWM5NsgVgyiUXYqkKOQ2xLE2-sb3A1PdKQnVyLCG9IRLa94W0LrArqlccheuHoSBDe2qlZVzxlfAZ8R2yNLxkGGTbqlPjGxSc-J4KeqXG_y6EOzh2E8N_XlJEPidWqdWk5RK9CtBEqAA',
+  crestLogo: '/assets/dwps_logo.svg',
   heroClassroom: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCAOKnBpektqvmdGtqeMZOyQDSFXaH1src42IU9xqiKP8rZz3j4ckH0cN_0sZeOG6tmbXUIV-b9RkLWNcdBVQJpaI5sqAbkQAF6t4AZa12jiqAJzAHFbqpVCLw2p3KWcZrtciTqKoaMVLm6oS6Hb9DOYO232bXAQmWQLh_Tzi9jyRkeP9ud1UD02rW-8z4s1FV0iZr4ypec6pI0UDzUhxVxPgwdaLCqsxSz08IytsSvXHuvFbC6hbTs',
   scienceExhibition: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAglcFAHIBE-lCGFDRXQTD6One8H6VsFEdncdPihNCy2ptyAzS4CC9_g8mCZz3ZjT9pbD79oLAOFq4V9a8l2rF1TmQTjEgyapp2B_YjnyXTxcPPNkNU92CiF-7uZAt5TnqBs6XzX3yfxWDfXSQ60DZNTfblLjCYUVfEiw17t4GnNRuS5sbDk7wCcAciyMF01Ly0MFjgHRGIdPbC3FXppfpKuTZVsuiIcCeJlGjEQaiCP8PoaxlJ13_1',
   earlyChildhood: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDkk9mme-f5HV2WRVvQhIgR62KAUxl1bmBDn48USXFbK3fDOQjZ6BbMQjYlm_x_P-5tF4jBo8TyBjQMmYjLPnagnEEqq16SzFiSsRC3fZ5w9emnJmyBXMnorSRNuo2rgHqnwobIITkGWqaY_MBLm2E32m_7XNzTwWFlJyJmL6HBkj2toDhz09LenFmAgyTia26JezdWTGas0m8ZV-48hqVRMCGuQNyAau5mQwGGKAsEhyS7eOJTUkQx',
@@ -444,8 +463,11 @@ export const INITIAL_INQUIRIES: InquiryRecord[] = [
     email: 'sharma.family@gmail.com',
     grade: 'KG / Prep',
     message: 'Looking for campus transport from Chawla Colony and fee structure.',
-    date: '2026-03-12',
-    status: 'Tour Scheduled'
+    date: '2026-03-21',
+    status: 'Tour Scheduled',
+    notes: 'Parent interested in bus stop at Chawla Colony main chowk. Campus tour fixed for Friday 10:30 AM.',
+    priority: 'High',
+    followUpDate: '2026-03-25'
   },
   {
     id: 'INQ-2026-079',
@@ -454,8 +476,11 @@ export const INITIAL_INQUIRIES: InquiryRecord[] = [
     email: 'kverma.lead@outlook.com',
     grade: 'Grade 1',
     message: 'Transferring from Delhi branch. Need admission process details.',
-    date: '2026-03-11',
-    status: 'Under Review'
+    date: '2026-03-20',
+    status: 'Contacted',
+    notes: 'Counselor called father; explained document list & TC requirements. Awaiting TC submission.',
+    priority: 'Normal',
+    followUpDate: '2026-03-26'
   },
   {
     id: 'INQ-2026-072',
@@ -464,7 +489,140 @@ export const INITIAL_INQUIRIES: InquiryRecord[] = [
     email: 'rawat.k@yahoo.com',
     grade: 'Nursery',
     message: 'Inquiring about teacher-student ratio and daycare availability.',
-    date: '2026-03-10',
-    status: 'Admission Offered'
+    date: '2026-03-19',
+    status: 'Admission Offered',
+    notes: 'Interaction completed with mother. Recommended for Nursery. Seat blocked until March 30.',
+    priority: 'High'
+  },
+  {
+    id: 'INQ-2026-068',
+    studentName: 'Ridhima Bhati',
+    phone: '+91 99920 18452',
+    email: 'sunilbhati.ballabgarh@gmail.com',
+    grade: 'Playgroup',
+    message: 'Seeking admission for 2.5-year-old toddler. Subhash Colony resident.',
+    date: '2026-03-18',
+    status: 'Enrolled',
+    notes: 'Registration fee paid, birth certificate verified. Uniform and starter kit issued.',
+    priority: 'Normal'
+  },
+  {
+    id: 'INQ-2026-065',
+    studentName: 'Devansh Tewatia',
+    phone: '+91 98188 64201',
+    email: 'rtewatia.corp@gmail.com',
+    grade: 'Grade 3',
+    message: 'Interested in STEM robotics club and school bus route from Sector 3.',
+    date: '2026-03-17',
+    status: 'Under Review',
+    notes: 'Diagnostic assessment scheduled for English & Math this Saturday.',
+    priority: 'Normal',
+    followUpDate: '2026-03-28'
+  },
+  {
+    id: 'INQ-2026-061',
+    studentName: 'Meera Chawla',
+    phone: '+91 97170 55129',
+    email: 'chawla.meera.admissions@gmail.com',
+    grade: 'Grade 6',
+    message: 'Relocating to Ballabgarh. Looking for middle school curriculum details and science labs.',
+    date: '2026-03-16',
+    status: 'New',
+    notes: 'Online inquiry received via website fee calculator. Pending initial counselor callback.',
+    priority: 'High',
+    followUpDate: '2026-03-23'
+  }
+];
+
+export const INITIAL_NEWSLETTERS: NewsletterItem[] = [
+  {
+    id: 'nl-2026-04',
+    title: 'The DWPS Chronicle: Welcoming Academic Session 2026-27 with Renewed Magic',
+    edition: 'Vol. 14 • Spring 2026 Edition',
+    publishDate: '2026-04-05',
+    category: 'Academics & STEM',
+    coverImageUrl: HOTLINK_IMAGES.smartClassroom,
+    summary: 'A special look into our newly upgraded interactive digital classrooms, AI-curiosity modules, teacher orientation workshops, and welcoming message from Director Mr. Rahul Chaudhary.',
+    content: `### Welcome to Academic Session 2026-27 at Disney World Public School!
+
+We are thrilled to welcome both returning students and enthusiastic new families stepping into our Subhash Colony campus for Session 2026-27. Guided by our motto **"Knowledge is Our Magic"**, this academic year marks substantial milestones in modern, child-centered schooling.
+
+#### 1. Interactive Smart Classroom Upgrades
+Every classroom across Pre-Primary, Primary, and Middle Wings has now been fitted with next-generation interactive touch displays, multimodal learning aids, and age-adapted digital labs that bring abstract concepts to vibrant visual life.
+
+#### 2. Faculty Pedagogy Workshop
+Our faculty team participated in a rigorous 5-day pedagogy symposium focused on the National Education Policy (NEP 2020) foundational stage, joy-based mathematics manipulatives, and socio-emotional mentorship.
+
+#### 3. Message from the Leadership Desk
+*"A school is only as transformative as the curiosity it awakens in every child. We assure every parent that DWPS Ballabgarh is a place of boundless encouragement, ethical grounding, and joyful discovery."*
+— **Mr. Rahul Chaudhary, Founder & Director**`,
+    author: 'Editorial Desk & Principal Ms. Neelam',
+    isLive: true,
+    highlights: [
+      '100% smart classroom digitization completed across all wings',
+      'Child-safe GPS transportation fleet deployed with live mobile tracking',
+      'NEP 2020 experiential learning modules for Playgroup through Grade 8',
+      'Admissions helpline open 8:00 AM - 2:00 PM Monday through Saturday'
+    ],
+    pdfDownloadUrl: '#',
+    tags: ['Academic Launch', 'Smart Classrooms', 'NEP 2020', 'Director Note']
+  },
+  {
+    id: 'nl-2026-03',
+    title: 'Annual Sports & Athletics Gala: Champions of Character, Grit & Team Spirit',
+    edition: 'Vol. 13 • Annual Sports Special',
+    publishDate: '2026-03-28',
+    category: 'Sports & Athletics',
+    coverImageUrl: HOTLINK_IMAGES.sportsRelay,
+    summary: 'Highlighting standout track events, inter-house relays, yoga demonstrations, and our medal tally from the Haryana District Inter-School Tournament.',
+    content: `### Champions of Disney World Public School Shine on Track & Turf!
+
+The annual athletic carnival brought together over 350 enthusiastic young athletes, cheering parents, and dedicated coaches in a vibrant display of sportsmanship, endurance, and camaraderie.
+
+#### Outstanding Highlights:
+- **Red Phoenix House** lifted the Overall Championship Trophy with gold finishes in 100m relay, long jump, and obstacle races.
+- **Pre-Primary Toddlers Fun Run**: The nursery obstacle race and sack bounce brought radiant smiles across the audience.
+- **District Inter-School Laurels**: 7 DWPS student athletes secured medals in the Faridabad Inter-School Track & Taekwondo tournaments.
+
+Physical fitness, fair play, and emotional resilience will always remain foundational pillars of student life at DWPS Ballabgarh.`,
+    author: 'Sports Department & House Mentors',
+    isLive: true,
+    highlights: [
+      'Red Phoenix House named Overall Sports Champions 2026',
+      '7 District medals secured in Taekwondo, Speed Sprint, and Yoga',
+      '100% student participation in annual drill and athletics',
+      'Special felicitation for parent-child fun races'
+    ],
+    pdfDownloadUrl: '#',
+    tags: ['Sports Gala', 'District Medals', 'Physical Fitness', 'House Cup']
+  },
+  {
+    id: 'nl-2026-02',
+    title: 'STEM Discovery & Junior Innovators Fair: Hands-On Science and Creative Robotics',
+    edition: 'Vol. 12 • Winter Science Edition',
+    publishDate: '2026-02-15',
+    category: 'Campus Life & Arts',
+    coverImageUrl: HOTLINK_IMAGES.scienceExhibition,
+    summary: 'Students from Grade 1 to 8 showcased over 45 working science projects, eco-friendly models, hydraulic lifts, and automated robotics prototypes.',
+    content: `### Young Scientists and Creative Thinkers at DWPS!
+
+Our annual STEM Exhibition brought classroom theory to practical innovation. Parents and guest educators were amazed by the clarity and articulate presentations given by students as young as Grade 2.
+
+#### Featured Student Projects:
+1. **Eco-Clean Smart Water Filtration**: Designed by Grade 5 students using natural porous charcoal and solar aeration.
+2. **Automated Solar Streetlight Sensor**: Practical circuit board programming by Grade 7 electronics club.
+3. **Biodegradable Seed Paper Initiative**: Primary wing initiative distributing plantable wildflower bookmarks to visitors.
+
+We congratulate every young researcher, their teacher mentors, and supportive parents who nurtured these imaginative experiments!`,
+    author: 'Science & Innovation Faculty',
+    isLive: true,
+    highlights: [
+      '45+ working student science models exhibited',
+      'Solar circuit demonstration by Grade 7 Robotics Club',
+      'Eco-friendly seed-paper distribution drive',
+      'Interactive parent science quiz and puzzle arena'
+    ],
+    pdfDownloadUrl: '#',
+    tags: ['Science Fair', 'STEM', 'Robotics', 'Eco Innovation']
   }
 ];

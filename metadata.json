@@ -2,5 +2,7 @@
   "name": "Disney World Public School Ballabgarh",
   "description": "Official interactive portal for Disney World Public School (DWPS) Ballabgarh, Subhash Colony. Admissions open 2026-27 from Playgroup to Grade School.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

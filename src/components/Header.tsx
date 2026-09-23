@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { SCHOOL_INFO, HOTLINK_IMAGES } from '../data/schoolData';
 
-export type ScreenType = 'home' | 'about' | 'academics' | 'admissions' | 'facilities' | 'our-team' | 'contact';
+export type ScreenType = 'home' | 'about' | 'academics' | 'admissions' | 'facilities' | 'our-team' | 'newsletters' | 'contact' | 'admin-dashboard';
 
 interface HeaderProps {
   currentScreen: ScreenType;
   onNavigate: (screen: ScreenType, sectionId?: string) => void;
   onOpenTourModal: () => void;
   onOpenInquiriesDrawer: () => void;
+  onOpenAdminLogin: () => void;
+  isAdminLoggedIn?: boolean;
   inquiryCount?: number;
 }
 
@@ -16,6 +18,8 @@ export const Header: React.FC<HeaderProps> = ({
   onNavigate,
   onOpenTourModal,
   onOpenInquiriesDrawer,
+  onOpenAdminLogin,
+  isAdminLoggedIn = false,
   inquiryCount = 0
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -29,24 +33,25 @@ export const Header: React.FC<HeaderProps> = ({
     { label: 'Home', screen: 'home', sectionId: 'home' },
     { label: 'About Us', screen: 'about', sectionId: 'about' },
     { label: 'Our Team', screen: 'our-team', sectionId: 'our-team' },
-    { label: 'Academics & Programs', screen: 'academics', sectionId: 'academics' },
+    { label: 'Academics', screen: 'academics', sectionId: 'academics' },
     { label: 'Admissions 2026-27', screen: 'admissions', sectionId: 'admissions' },
     { label: 'Facilities', screen: 'facilities', sectionId: 'facilities' },
+    { label: 'Newsletters', screen: 'newsletters', sectionId: 'newsletters' },
     { label: 'Contact', screen: 'contact', sectionId: 'contact' },
   ];
 
   return (
     <header className="bg-white/95 backdrop-blur-md text-[#021936] border-b border-[#dce3ec] shadow-sm sticky top-0 z-50 transition-all duration-200">
-      <div className="flex justify-between items-center w-full px-4 sm:px-6 lg:px-16 max-w-7xl mx-auto h-20">
+      <div className="flex justify-between items-center w-full px-4 sm:px-6 lg:px-8 xl:px-12 max-w-7xl mx-auto h-20">
         {/* Brand Crest & Identity */}
         <button
           onClick={() => handleLinkClick('home')}
-          className="flex items-center gap-3.5 group text-left focus:outline-none"
+          className="flex items-center gap-3 sm:gap-3.5 group text-left focus:outline-none flex-shrink-0 cursor-pointer"
         >
-          <div className="relative w-12 h-12 flex-shrink-0 rounded-lg p-1 bg-white shadow-sm border border-[#dce3ec] flex items-center justify-center">
+          <div className="relative w-12 h-12 sm:w-13 sm:h-13 flex-shrink-0 rounded-xl p-1 bg-white shadow-xs border border-[#dce3ec] flex items-center justify-center">
             <img
               alt="School Crest Logo"
-              className="h-10 w-auto object-contain transition-transform group-hover:scale-105 duration-200"
+              className="h-full w-full object-contain transition-transform group-hover:scale-105 duration-200"
               src={HOTLINK_IMAGES.crestLogo}
               onError={(e) => {
                 // Fallback shield if network is restricted
@@ -58,18 +63,18 @@ export const Header: React.FC<HeaderProps> = ({
               shield
             </span>
           </div>
-          <div className="flex flex-col">
-            <span className="text-[17px] sm:text-[20px] font-bold text-[#021936] tracking-tight leading-tight font-serif">
+          <div className="flex flex-col justify-center min-w-0">
+            <span className="text-[17px] sm:text-[19px] lg:text-[21px] font-extrabold text-[#021936] tracking-tight leading-tight font-serif whitespace-nowrap">
               {SCHOOL_INFO.name}
             </span>
-            <span className="text-[10px] sm:text-[11px] font-semibold text-[#904d00] tracking-widest uppercase">
+            <span className="text-[10px] sm:text-[11px] font-semibold text-[#904d00] tracking-wider uppercase whitespace-nowrap mt-0.5">
               {SCHOOL_INFO.motto} • Subhash Colony
             </span>
           </div>
         </button>
 
         {/* Desktop Navigation Links */}
-        <nav className="hidden lg:flex items-center gap-6 xl:gap-7">
+        <nav className="hidden lg:flex items-center gap-4 xl:gap-6">
           {navItems.map((item) => {
             const isActive = currentScreen === item.screen;
             return (
@@ -89,23 +94,37 @@ export const Header: React.FC<HeaderProps> = ({
         </nav>
 
         {/* Action Cluster */}
-        <div className="hidden sm:flex items-center gap-2.5">
-          <button
-            onClick={() => handleLinkClick('admissions', 'admissions-form')}
-            className="text-[13px] font-semibold text-[#021936] hover:text-[#904d00] hover:bg-[#eef4fd] px-3.5 py-2 rounded-lg transition-all cursor-pointer"
-          >
-            Inquire Now
-          </button>
-          
+        <div className="hidden sm:flex items-center gap-2">
+          {/* School Staff Login / Admin Portal Trigger */}
+          {isAdminLoggedIn ? (
+            <button
+              onClick={() => handleLinkClick('admin-dashboard')}
+              className="inline-flex items-center gap-1.5 text-[12px] font-bold bg-[#021936] text-[#fe932c] hover:bg-[#1a2e4c] px-3 py-2 rounded-lg transition-all border border-[#1a2e4c] shadow-xs cursor-pointer"
+              title="Open School Administration Dashboard"
+            >
+              <span className="material-symbols-outlined text-base">admin_panel_settings</span>
+              <span>School Admin</span>
+            </button>
+          ) : (
+            <button
+              onClick={onOpenAdminLogin}
+              className="inline-flex items-center gap-1.5 text-[12px] font-bold text-[#021936] hover:text-[#904d00] hover:bg-[#eef4fd] px-3 py-2 rounded-lg transition-all cursor-pointer"
+              title="School Login for Staff & Inquiries"
+            >
+              <span className="material-symbols-outlined text-base text-[#904d00]">lock</span>
+              <span>School Login</span>
+            </button>
+          )}
+
           <button
             onClick={() => handleLinkClick('admissions', 'admissions-form')}
             className="inline-flex items-center justify-center text-[13px] font-bold bg-[#904d00] hover:bg-[#B45309] text-white px-4 py-2.5 rounded-lg shadow-sm hover:shadow transition-all active:scale-95 duration-150 gap-1.5 cursor-pointer"
           >
             <span className="material-symbols-outlined text-base">edit_note</span>
-            Apply for Admission
+            Apply 2026-27
           </button>
 
-          {/* Inquiries Desk Trigger for school admin / parent tracking */}
+          {/* Inquiries Desk Trigger */}
           <button
             onClick={onOpenInquiriesDrawer}
             title="Admissions Helpdesk Log"
@@ -162,12 +181,33 @@ export const Header: React.FC<HeaderProps> = ({
           </nav>
 
           <div className="pt-4 border-t border-[#dce3ec] flex flex-col gap-2.5">
+            {isAdminLoggedIn ? (
+              <button
+                onClick={() => handleLinkClick('admin-dashboard')}
+                className="w-full py-2.5 px-4 rounded-lg bg-[#021936] text-[#fe932c] font-bold text-sm flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined text-base">admin_panel_settings</span>
+                School Admin Dashboard
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onOpenAdminLogin();
+                }}
+                className="w-full py-2.5 px-4 rounded-lg bg-[#F2F8FD] text-[#021936] font-bold text-sm border border-[#dce3ec] flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined text-base text-[#904d00]">lock</span>
+                School Staff &amp; Inquiries Login
+              </button>
+            )}
+
             <button
               onClick={() => {
                 setMobileMenuOpen(false);
                 onOpenTourModal();
               }}
-              className="w-full py-2.5 px-4 rounded-lg bg-[#F2F8FD] text-[#021936] font-semibold text-sm border border-[#dce3ec] flex items-center justify-center gap-2"
+              className="w-full py-2.5 px-4 rounded-lg bg-white text-[#021936] font-semibold text-sm border border-[#dce3ec] flex items-center justify-center gap-2"
             >
               <span className="material-symbols-outlined text-base text-[#904d00]">calendar_month</span>
               Book Campus Tour
