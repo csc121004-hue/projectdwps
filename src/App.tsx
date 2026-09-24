@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NotificationStrip } from './components/NotificationStrip';
 import { Header, ScreenType } from './components/Header';
 import { HeroSection } from './components/HeroSection';
@@ -23,6 +23,7 @@ import { NewsTicker } from './components/NewsTicker';
 import { NewsletterView } from './components/NewsletterView';
 import { SchoolAdminDashboard } from './components/SchoolAdminDashboard';
 import { SchoolAdminLoginModal } from './components/SchoolAdminLoginModal';
+import { api } from './services/api';
 import {
   GalleryItem,
   InquiryRecord,
@@ -87,6 +88,30 @@ export default function App() {
     return null;
   });
 
+  // Sync with Neon DB on startup if connected
+  useEffect(() => {
+    let isMounted = true;
+    async function syncWithDatabase() {
+      try {
+        const [dbInquiries, dbAnnouncements] = await Promise.all([
+          api.getInquiries(),
+          api.getAnnouncements()
+        ]);
+        if (!isMounted) return;
+        if (dbInquiries && dbInquiries.length > 0) {
+          setInquiries(dbInquiries);
+        }
+        if (dbAnnouncements && dbAnnouncements.length > 0) {
+          setAnnouncements(dbAnnouncements);
+        }
+      } catch (err) {
+        console.warn('Database initial sync note:', err);
+      }
+    }
+    syncWithDatabase();
+    return () => { isMounted = false; };
+  }, []);
+
   const handleNavigate = (screen: ScreenType, sectionId?: string) => {
     if (screen === 'admin-dashboard' && !adminUser) {
       setIsAdminLoginOpen(true);
@@ -118,6 +143,10 @@ export default function App() {
   const handleNewInquirySubmitted = (newInquiry: InquiryRecord) => {
     const updated = [newInquiry, ...inquiries];
     handleUpdateInquiries(updated);
+    // Persist to Neon DB
+    api.saveInquiry(newInquiry).catch((err) => {
+      console.warn('Inquiry DB sync note:', err);
+    });
   };
 
   const handleUpdateNewsletters = (updated: NewsletterItem[]) => {
@@ -135,6 +164,9 @@ export default function App() {
       localStorage.setItem('dwps_announcements', JSON.stringify(updated));
     } catch (e) {
       console.warn('Failed to save announcements to localStorage', e);
+    }
+    if (updated[0]) {
+      api.saveAnnouncement(updated[0]).catch(console.warn);
     }
   };
 

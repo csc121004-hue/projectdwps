@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { SCHOOL_INFO } from '../data/schoolData';
+import { api } from '../services/api';
 
 interface CampusTourModalProps {
   isOpen: boolean;
@@ -28,13 +29,25 @@ export const CampusTourModal: React.FC<CampusTourModalProps> = ({ isOpen, onClos
 
   const handleBooking = (e: React.FormEvent) => {
     e.preventDefault();
+    const passId = `DWPS-TOUR-${Math.floor(1000 + Math.random() * 9000)}`;
     setConfirmedPass({
-      passId: `DWPS-TOUR-${Math.floor(1000 + Math.random() * 9000)}`,
+      passId,
       parentName: formData.parentName,
       date: formData.date,
       timeSlot: formData.timeSlot,
       grade: formData.grade,
     });
+
+    // Save to Neon database
+    api.saveTourBooking({
+      id: passId,
+      parentName: formData.parentName,
+      phone: formData.phone,
+      preferredDate: formData.date,
+      preferredSlot: formData.timeSlot,
+      gradeInterested: formData.grade,
+      notes: formData.interests
+    }).catch(console.warn);
   };
 
   return (

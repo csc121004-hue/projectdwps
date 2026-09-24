@@ -8,6 +8,8 @@ import {
 } from '../data/schoolData';
 import { SchoolLogo } from './SchoolLogo';
 import { AnnouncementsManager } from './AnnouncementsManager';
+import { NeonDbStatusModal } from './NeonDbStatusModal';
+import { api } from '../services/api';
 import {
   PeriodicBackupModal,
   BackupSettings,
@@ -50,6 +52,18 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
   // Periodic Backup States
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
   const [backupToast, setBackupToast] = useState<string>('');
+
+  // Neon DB Connection State
+  const [isDbModalOpen, setIsDbModalOpen] = useState(false);
+  const [dbHealth, setDbHealth] = useState<{ ok: boolean; configured: boolean; message: string; database?: string } | null>(null);
+
+  useEffect(() => {
+    api.getHealth().then((res) => {
+      if (res?.database) {
+        setDbHealth(res.database);
+      }
+    }).catch(console.warn);
+  }, []);
   const [backupSettings, setBackupSettings] = useState<BackupSettings>(() => {
     try {
       const saved = localStorage.getItem('dwps_backup_settings');
@@ -501,6 +515,34 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
           </div>
 
           <div className="flex items-center gap-2.5">
+            {/* Neon DB Cloud Connection Status Capsule */}
+            <button
+              onClick={() => setIsDbModalOpen(true)}
+              className={`py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center gap-2 border transition-all cursor-pointer shadow-xs ${
+                dbHealth?.ok
+                  ? 'bg-[#003829] hover:bg-[#004d38] text-[#00E699] border-emerald-500/50'
+                  : 'bg-white/10 hover:bg-white/20 text-slate-200 border-white/10'
+              }`}
+              title="Neon Database Connection Status & Deployment Guide"
+            >
+              <span className="relative flex h-2 w-2">
+                {dbHealth?.ok && (
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                )}
+                <span
+                  className={`relative inline-flex rounded-full h-2 w-2 ${
+                    dbHealth?.ok ? 'bg-emerald-400' : 'bg-amber-400'
+                  }`}
+                ></span>
+              </span>
+              <span className="font-mono text-xs hidden sm:inline">
+                {dbHealth?.ok ? 'Neon DB: Connected' : 'DB: Local Mode'}
+              </span>
+              <span className="font-mono text-xs sm:hidden">
+                {dbHealth?.ok ? 'Neon' : 'DB'}
+              </span>
+            </button>
+
             {/* Auto-Backup Status Capsule */}
             <button
               onClick={() => setIsBackupModalOpen(true)}
@@ -1707,6 +1749,12 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
         lastBackupTime={lastBackupTime}
         onTriggerBackup={executeBackup}
         onRestoreData={handleRestoreBackupData}
+      />
+
+      {/* --- MODAL 6: NEON DATABASE STATUS & DEPLOYMENT GUIDE --- */}
+      <NeonDbStatusModal
+        isOpen={isDbModalOpen}
+        onClose={() => setIsDbModalOpen(false)}
       />
     </div>
   );

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { NewsletterItem, SCHOOL_INFO, HOTLINK_IMAGES } from '../data/schoolData';
 import { SchoolLogo } from './SchoolLogo';
+import { api } from '../services/api';
 
 interface NewsletterViewProps {
   newsletters: NewsletterItem[];
@@ -53,6 +54,9 @@ export const NewsletterView: React.FC<NewsletterViewProps> = ({
     e.preventDefault();
     if (subEmail.trim()) {
       setSubSuccess(true);
+      // Persist subscriber to Neon database
+      api.subscribeNewsletter(subEmail.trim()).catch(console.warn);
+
       setTimeout(() => {
         setSubEmail('');
         setSubPhone('');
