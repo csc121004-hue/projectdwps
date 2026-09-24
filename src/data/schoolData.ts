@@ -142,7 +142,7 @@ export const TEAM_MEMBERS: TeamMember[] = [
     name: 'Ms. Anjali',
     role: 'Teacher',
     category: 'Faculty',
-    imageUrl: '/assets/faculty/anjali.jpg',
+    imageUrl: '/assets/faculty/anjali.jpg?v=2',
     description: 'Dedicated mathematics educator demystifying numbers, cultivating logical reasoning, mental math agility, and real-world problem-solving.',
     qualifications: 'B.Sc. (Mathematics), B.Ed.',
     subjects: ['Mathematics', 'Mental Math', 'Logical Reasoning']
@@ -162,7 +162,7 @@ export const TEAM_MEMBERS: TeamMember[] = [
     name: 'Ms. Neha',
     role: 'Teacher',
     category: 'Faculty',
-    imageUrl: '/assets/faculty/neha.jpg',
+    imageUrl: '/assets/faculty/neha.jpg?v=2',
     description: 'Integrating environmental awareness with foundational digital literacy, teaching students respect for nature alongside computer fundamentals and IT skills.',
     qualifications: 'B.C.A., B.Ed.',
     subjects: ['EVS & Computer', 'Environmental Studies', 'Computer Fundamentals']
@@ -172,7 +172,7 @@ export const TEAM_MEMBERS: TeamMember[] = [
     name: 'Ms. Geeta',
     role: 'Teacher',
     category: 'Faculty',
-    imageUrl: '/assets/faculty/geeta.jpg',
+    imageUrl: '/assets/faculty/geeta.jpg?v=2',
     description: 'Guiding UKG learners through foundational early childhood literacy, systematic phonics, speech clarity, and joyous expressive learning.',
     qualifications: 'N.T.T., B.A., Early Childhood Education Specialist',
     subjects: ['UKG', 'Early Childhood Literacy', 'Phonics']
@@ -182,7 +182,7 @@ export const TEAM_MEMBERS: TeamMember[] = [
     name: 'Ms. Pavitra',
     role: 'Teacher',
     category: 'Faculty',
-    imageUrl: '/assets/faculty/pavitra.jpg',
+    imageUrl: '/assets/faculty/pavitra.jpg?v=2',
     description: 'Dedicated early childhood educator cultivating foundational literacy, joyful vocabulary building, storytelling confidence, and phonics mastery.',
     qualifications: 'N.T.T., B.A., Early Childhood Education Certified',
     subjects: ['Early Childhood Literacy', 'Phonics & Vocabulary', 'Creative Storytelling']
