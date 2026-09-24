@@ -23,6 +23,7 @@ import { NewsTicker } from './components/NewsTicker';
 import { NewsletterView } from './components/NewsletterView';
 import { SchoolAdminDashboard } from './components/SchoolAdminDashboard';
 import { SchoolAdminLoginModal } from './components/SchoolAdminLoginModal';
+import { NeonDbStatusModal } from './components/NeonDbStatusModal';
 import { api } from './services/api';
 import {
   GalleryItem,
@@ -43,6 +44,7 @@ export default function App() {
   const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  const [isDbStatusModalOpen, setIsDbStatusModalOpen] = useState(false);
 
   // Persistent Inquiries State
   const [inquiries, setInquiries] = useState<InquiryRecord[]>(() => {
@@ -429,6 +431,13 @@ export default function App() {
         onOpenPrivacyModal={() => setShowPrivacyModal(true)}
         onOpenTermsModal={() => setShowTermsModal(true)}
         onOpenAdminLogin={() => setIsAdminLoginOpen(true)}
+        onOpenDbStatus={() => setIsDbStatusModalOpen(true)}
+      />
+
+      {/* Neon Database Status & Inspector Modal */}
+      <NeonDbStatusModal
+        isOpen={isDbStatusModalOpen}
+        onClose={() => setIsDbStatusModalOpen(false)}
       />
 
       {/* 5. School Staff & Admin Login Modal */}

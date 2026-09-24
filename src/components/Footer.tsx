@@ -7,13 +7,15 @@ interface FooterProps {
   onOpenPrivacyModal?: () => void;
   onOpenTermsModal?: () => void;
   onOpenAdminLogin?: () => void;
+  onOpenDbStatus?: () => void;
 }
 
 export const Footer: React.FC<FooterProps> = ({
   onNavigate,
   onOpenPrivacyModal,
   onOpenTermsModal,
-  onOpenAdminLogin
+  onOpenAdminLogin,
+  onOpenDbStatus
 }) => {
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -184,6 +186,19 @@ export const Footer: React.FC<FooterProps> = ({
             >
               Terms of Admission
             </button>
+            {onOpenDbStatus && (
+              <>
+                <span>•</span>
+                <button
+                  onClick={onOpenDbStatus}
+                  className="hover:text-[#00E699] transition-colors cursor-pointer flex items-center gap-1 text-[#8396b9]"
+                  title="Check Neon Database Connection and Tables"
+                >
+                  <span className="material-symbols-outlined text-[13px]">database</span>
+                  <span>Database Status</span>
+                </button>
+              </>
+            )}
             <span>•</span>
             <button
               onClick={scrollToTop}

@@ -1,5 +1,11 @@
 import { InquiryRecord, SchoolAnnouncement } from '../data/schoolData';
 
+export interface TableSummary {
+  name: string;
+  exists: boolean;
+  rowCount: number;
+}
+
 export interface DbHealthResponse {
   status: string;
   timestamp: string;
@@ -8,7 +14,12 @@ export interface DbHealthResponse {
     configured: boolean;
     message: string;
     database?: string;
+    user?: string;
     version?: string;
+    hostMasked?: string;
+    tables?: TableSummary[];
+    allPublicTables?: string[];
+    logs?: string[];
   };
 }
 
@@ -16,6 +27,20 @@ export const api = {
   async getHealth(): Promise<DbHealthResponse | null> {
     try {
       const res = await fetch('/api/health');
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  },
+
+  async initializeDb(): Promise<{
+    action: string;
+    result: { success: boolean; message: string; tables: string[]; logs: string[] };
+    currentStatus: DbHealthResponse['database'];
+  } | null> {
+    try {
+      const res = await fetch('/api/db/init', { method: 'POST' });
       if (!res.ok) return null;
       return await res.json();
     } catch {

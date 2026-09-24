@@ -25,6 +25,23 @@ app.get('/api/health', async (_req, res) => {
   });
 });
 
+// Explicit manual trigger to initialize and verify database tables
+app.all(['/api/db/init', '/api/init-db'], async (_req, res) => {
+  const initResult = await initializeDatabase();
+  const status = await checkDbConnection();
+  res.json({
+    action: 'initializeDatabase',
+    result: initResult,
+    currentStatus: status
+  });
+});
+
+// Direct database status endpoint
+app.get('/api/db/status', async (_req, res) => {
+  const status = await checkDbConnection();
+  res.json(status);
+});
+
 // 2. Admission Inquiries API
 app.get('/api/inquiries', async (_req, res) => {
   await ensureDbInit();
