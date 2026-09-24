@@ -1,18 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   SCHOOL_INFO,
   InquiryRecord,
   NewsletterItem,
+  SchoolAnnouncement,
   HOTLINK_IMAGES
 } from '../data/schoolData';
 import { SchoolLogo } from './SchoolLogo';
+import { AnnouncementsManager } from './AnnouncementsManager';
+import {
+  PeriodicBackupModal,
+  BackupSettings,
+  SchoolBackupPayload,
+  BackupHistoryRecord
+} from './PeriodicBackupModal';
 
 interface SchoolAdminDashboardProps {
   currentUser: { name: string; role: string; email: string };
   inquiries: InquiryRecord[];
   newsletters: NewsletterItem[];
+  announcements: SchoolAnnouncement[];
   onUpdateInquiries: (inquiries: InquiryRecord[]) => void;
   onUpdateNewsletters: (newsletters: NewsletterItem[]) => void;
+  onUpdateAnnouncements: (announcements: SchoolAnnouncement[]) => void;
   onLogout: () => void;
   onBackToWebsite: () => void;
 }
@@ -21,17 +31,45 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
   currentUser,
   inquiries,
   newsletters,
+  announcements,
   onUpdateInquiries,
   onUpdateNewsletters,
+  onUpdateAnnouncements,
   onLogout,
   onBackToWebsite,
 }) => {
-  const [activeTab, setActiveTab] = useState<'inquiries' | 'newsletters'>('inquiries');
+  const [activeTab, setActiveTab] = useState<'inquiries' | 'announcements' | 'newsletters'>('inquiries');
 
   // Inquiries Filters
   const [inquirySearch, setInquirySearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [gradeFilter, setGradeFilter] = useState<string>('all');
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [csvExportToast, setCsvExportToast] = useState<string>('');
+
+  // Periodic Backup States
+  const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
+  const [backupToast, setBackupToast] = useState<string>('');
+  const [backupSettings, setBackupSettings] = useState<BackupSettings>(() => {
+    try {
+      const saved = localStorage.getItem('dwps_backup_settings');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.warn('Failed to load backup settings', e);
+    }
+    return {
+      enabled: true,
+      intervalMinutes: 15,
+      autoDownload: true,
+      notifyOnAutoBackup: true,
+    };
+  });
+  const [lastBackupTime, setLastBackupTime] = useState<string | null>(() => {
+    return localStorage.getItem('dwps_last_backup_time') || null;
+  });
+  const [secondsRemaining, setSecondsRemaining] = useState<number>(() => {
+    return (backupSettings?.intervalMinutes || 15) * 60;
+  });
 
   // Modal States
   const [selectedInquiry, setSelectedInquiry] = useState<InquiryRecord | null>(null);
@@ -126,29 +164,6 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
     });
   };
 
-  const exportInquiriesCSV = () => {
-    const headers = ['Application ID', 'Student Name', 'Grade', 'Phone', 'Email', 'Date', 'Status', 'Notes'];
-    const rows = inquiries.map((i) => [
-      i.id,
-      `"${i.studentName}"`,
-      `"${i.grade}"`,
-      `"${i.phone}"`,
-      `"${i.email}"`,
-      i.date,
-      i.status,
-      `"${(i.notes || i.message || '').replace(/"/g, '""')}"`,
-    ]);
-
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `DWPS_Admissions_Inquiries_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   // --- Filtered Inquiries ---
   const filteredInquiries = inquiries.filter((inq) => {
     const q = inquirySearch.toLowerCase().trim();
@@ -165,6 +180,216 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
 
     return matchesSearch && matchesStatus && matchesGrade;
   });
+
+  // --- CSV Export Handler for Student Inquiries ---
+  const exportInquiriesCSV = (scope: 'all' | 'filtered' | InquiryRecord[] = 'all', customLabel?: string) => {
+    let listToExport: InquiryRecord[];
+    let filePrefix = 'All';
+
+    if (Array.isArray(scope)) {
+      listToExport = scope;
+      filePrefix = customLabel || 'Selected';
+    } else if (scope === 'filtered') {
+      listToExport = filteredInquiries;
+      filePrefix = 'Filtered';
+    } else {
+      listToExport = inquiries;
+      filePrefix = 'All';
+    }
+
+    if (listToExport.length === 0) {
+      alert('No student inquiry records found to export for this selection.');
+      return;
+    }
+
+    const headers = [
+      'Application ID',
+      'Student Name',
+      'Grade Seeking',
+      'Primary Contact Phone',
+      'Email Address',
+      'Inquiry Date',
+      'Current Status',
+      'Priority',
+      'Parent Inquiry Message',
+      'Staff Counselor Notes'
+    ];
+
+    const escapeCell = (val: string | number | undefined | null) => {
+      if (val === undefined || val === null) return '""';
+      const clean = String(val).replace(/"/g, '""').replace(/\r\n/g, ' ').replace(/[\r\n]/g, ' ');
+      return `"${clean}"`;
+    };
+
+    const rows = listToExport.map((i) => [
+      escapeCell(i.id),
+      escapeCell(i.studentName),
+      escapeCell(i.grade),
+      escapeCell(i.phone),
+      escapeCell(i.email),
+      escapeCell(i.date),
+      escapeCell(i.status),
+      escapeCell(i.priority || 'Normal'),
+      escapeCell(i.message || ''),
+      escapeCell(i.notes || ''),
+    ]);
+
+    // Prepend UTF-8 Byte Order Mark (\uFEFF) for Excel compatibility
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const dateStr = new Date().toISOString().split('T')[0];
+    const filename = `DWPS_Admissions_Inquiries_${filePrefix}_${dateStr}.csv`;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    setIsExportMenuOpen(false);
+    setCsvExportToast(`Export Successful: Downloaded ${listToExport.length} student inquiry records as "${filename}".`);
+    setTimeout(() => setCsvExportToast(''), 5000);
+  };
+
+  // --- Periodic Data Backup & Serialization Handler ---
+  const executeBackup = (trigger: 'automatic_periodic' | 'manual_export' = 'manual_export') => {
+    const timestamp = new Date().toISOString();
+    const dateFormatted = timestamp.replace(/[:.]/g, '-').slice(0, 19);
+    const prefix = trigger === 'automatic_periodic' ? 'Auto' : 'Manual';
+    const filename = `DWPS_School_Backup_${prefix}_${dateFormatted}.json`;
+
+    const payload: SchoolBackupPayload = {
+      schema: 'DWPS_SCHOOL_SYSTEM_BACKUP',
+      version: '1.0.0',
+      timestamp,
+      exportedAt: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+      institution: {
+        name: SCHOOL_INFO.name,
+        shortName: SCHOOL_INFO.shortName,
+        address: SCHOOL_INFO.address,
+        phone: SCHOOL_INFO.phone,
+        email: SCHOOL_INFO.email,
+        academicYear: SCHOOL_INFO.academicYear,
+      },
+      exportedBy: currentUser,
+      summary: {
+        totalInquiries: inquiries.length,
+        totalAnnouncements: announcements.length,
+        totalNewsletters: newsletters.length,
+        backupTrigger: trigger,
+      },
+      data: {
+        inquiries,
+        announcements,
+        newsletters,
+      },
+    };
+
+    const jsonString = JSON.stringify(payload, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    // Record last backup timestamp
+    const nowIso = new Date().toISOString();
+    setLastBackupTime(nowIso);
+    try {
+      localStorage.setItem('dwps_last_backup_time', nowIso);
+    } catch (e) {
+      console.warn('Failed to save last backup time', e);
+    }
+
+    // Save history entry
+    try {
+      const existingHistory: BackupHistoryRecord[] = JSON.parse(
+        localStorage.getItem('dwps_backup_history') || '[]'
+      );
+      const newRecord: BackupHistoryRecord = {
+        id: `BCK-${Date.now()}`,
+        timestamp: nowIso,
+        filename,
+        trigger,
+        inquiriesCount: inquiries.length,
+        announcementsCount: announcements.length,
+        newslettersCount: newsletters.length,
+        fileSizeBytes: blob.size,
+      };
+      localStorage.setItem('dwps_backup_history', JSON.stringify([newRecord, ...existingHistory].slice(0, 30)));
+    } catch (e) {
+      console.warn('Failed to write backup history', e);
+    }
+
+    // Reset countdown
+    setSecondsRemaining(backupSettings.intervalMinutes * 60);
+
+    // Toast notification
+    if (trigger === 'manual_export' || backupSettings.notifyOnAutoBackup) {
+      setBackupToast(
+        `${trigger === 'automatic_periodic' ? '⚡ Periodic Auto-Backup Completed' : '📥 School Backup Downloaded'}: Serialized ${inquiries.length} inquiries, ${announcements.length} updates & ${newsletters.length} newsletters to "${filename}".`
+      );
+      setTimeout(() => setBackupToast(''), 6000);
+    }
+  };
+
+  const executeBackupRef = useRef(executeBackup);
+  useEffect(() => {
+    executeBackupRef.current = executeBackup;
+  });
+
+  // Periodic Timer Effect
+  useEffect(() => {
+    if (!backupSettings.enabled) return;
+
+    const timer = setInterval(() => {
+      setSecondsRemaining((prev) => {
+        if (prev <= 1) {
+          if (backupSettings.autoDownload) {
+            executeBackupRef.current('automatic_periodic');
+          } else {
+            const nowIso = new Date().toISOString();
+            setLastBackupTime(nowIso);
+            try {
+              localStorage.setItem('dwps_last_backup_time', nowIso);
+            } catch (e) {}
+          }
+          return backupSettings.intervalMinutes * 60;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [backupSettings.enabled, backupSettings.intervalMinutes, backupSettings.autoDownload]);
+
+  const handleUpdateBackupSettings = (newSettings: BackupSettings) => {
+    setBackupSettings(newSettings);
+    setSecondsRemaining(newSettings.intervalMinutes * 60);
+    try {
+      localStorage.setItem('dwps_backup_settings', JSON.stringify(newSettings));
+    } catch (e) {
+      console.warn('Failed to save backup settings', e);
+    }
+  };
+
+  const handleRestoreBackupData = (
+    restoredInquiries?: InquiryRecord[],
+    restoredAnnouncements?: SchoolAnnouncement[],
+    restoredNewsletters?: NewsletterItem[]
+  ) => {
+    if (restoredInquiries) onUpdateInquiries(restoredInquiries);
+    if (restoredAnnouncements) onUpdateAnnouncements(restoredAnnouncements);
+    if (restoredNewsletters) onUpdateNewsletters(restoredNewsletters);
+    setBackupToast('Data Restore Complete: Database synchronized with uploaded backup JSON.');
+    setTimeout(() => setBackupToast(''), 6000);
+  };
 
   // --- Newsletter Handlers ---
   const handleOpenCreateNewsletter = () => {
@@ -276,6 +501,49 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
           </div>
 
           <div className="flex items-center gap-2.5">
+            {/* Auto-Backup Status Capsule */}
+            <button
+              onClick={() => setIsBackupModalOpen(true)}
+              className={`py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center gap-2 border transition-all cursor-pointer shadow-xs ${
+                backupSettings.enabled
+                  ? 'bg-[#1a2e4c] hover:bg-[#253d63] text-white border-emerald-500/40'
+                  : 'bg-white/10 hover:bg-white/20 text-slate-300 border-white/10'
+              }`}
+              title="Open Periodic Data Backup & Archive Center"
+            >
+              <span className="relative flex h-2 w-2">
+                {backupSettings.enabled && (
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                )}
+                <span
+                  className={`relative inline-flex rounded-full h-2 w-2 ${
+                    backupSettings.enabled ? 'bg-emerald-500' : 'bg-slate-400'
+                  }`}
+                ></span>
+              </span>
+              <span className="hidden sm:inline font-mono">
+                {backupSettings.enabled
+                  ? `Auto-Backup: ${Math.floor(secondsRemaining / 60)}m ${(secondsRemaining % 60)
+                      .toString()
+                      .padStart(2, '0')}s`
+                  : 'Backup: Paused'}
+              </span>
+              <span className="sm:hidden font-mono">
+                {backupSettings.enabled ? `${Math.floor(secondsRemaining / 60)}m` : 'Off'}
+              </span>
+              <span className="material-symbols-outlined text-sm text-[#fe932c]">settings_backup_restore</span>
+            </button>
+
+            {/* Quick Instant Backup JSON button */}
+            <button
+              onClick={() => executeBackup('manual_export')}
+              className="py-1.5 px-3 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs whitespace-nowrap"
+              title="Download fresh JSON backup of inquiries, announcements, and newsletters"
+            >
+              <span className="material-symbols-outlined text-sm">cloud_download</span>
+              <span className="hidden md:inline">Backup (.JSON)</span>
+            </button>
+
             <button
               onClick={onBackToWebsite}
               className="py-2 px-3.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -311,6 +579,21 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
           </button>
 
           <button
+            onClick={() => setActiveTab('announcements')}
+            className={`py-3 px-4 text-xs font-bold transition-all border-b-2 cursor-pointer flex items-center gap-2 ${
+              activeTab === 'announcements'
+                ? 'border-[#fe932c] text-[#fe932c]'
+                : 'border-transparent text-[#8396b9] hover:text-white'
+            }`}
+          >
+            <span className="material-symbols-outlined text-lg">campaign</span>
+            <span>Upcoming Updates &amp; Notices (आगामी अपडेट्स)</span>
+            <span className="px-2 py-0.5 rounded-full bg-[#904d00]/30 text-[#fe932c] text-[10px] font-mono font-bold border border-[#fe932c]/30">
+              {announcements.length} Live
+            </span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('newsletters')}
             className={`py-3 px-4 text-xs font-bold transition-all border-b-2 cursor-pointer flex items-center gap-2 ${
               activeTab === 'newsletters'
@@ -329,9 +612,55 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
 
       {/* Main Content Area */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-8">
+        {/* Global Auto-Backup Toast Notification */}
+        {backupToast && (
+          <div className="p-4 rounded-xl bg-[#021936] text-white border border-[#1a2e4c] shadow-xl flex items-center justify-between animate-fadeIn">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                <span className="material-symbols-outlined text-xl">cloud_done</span>
+              </div>
+              <div>
+                <div className="text-xs font-bold font-serif text-[#fe932c]">
+                  Disney World Public School • Local Storage Backup
+                </div>
+                <div className="text-xs text-slate-200 mt-0.5">{backupToast}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsBackupModalOpen(true)}
+                className="py-1 px-2.5 rounded bg-white/10 hover:bg-white/20 text-[11px] font-semibold text-[#fe932c] cursor-pointer"
+              >
+                Open Archive
+              </button>
+              <button
+                onClick={() => setBackupToast('')}
+                className="p-1 text-slate-400 hover:text-white cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-base">close</span>
+              </button>
+            </div>
+          </div>
+        )}
         {/* ===================== TAB 1: INQUIRIES MANAGEMENT ===================== */}
         {activeTab === 'inquiries' && (
           <div className="space-y-6 animate-fadeIn">
+            {/* CSV Export Success Toast */}
+            {csvExportToast && (
+              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold flex items-center justify-between shadow-xs animate-fadeIn">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-emerald-600 text-lg">check_circle</span>
+                  <span>{csvExportToast}</span>
+                </div>
+                <button
+                  onClick={() => setCsvExportToast('')}
+                  className="p-1 hover:bg-emerald-100 rounded text-emerald-700 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-sm">close</span>
+                </button>
+              </div>
+            )}
+
             {/* KPI Metric Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="bg-white p-5 rounded-2xl border border-[#dce3ec] custom-shadow-card">
@@ -401,7 +730,7 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
                   {inquirySearch && (
                     <button
                       onClick={() => setInquirySearch('')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
                     >
                       <span className="material-symbols-outlined text-base">close</span>
                     </button>
@@ -418,14 +747,61 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
                     <span>Record Walk-In / Lead</span>
                   </button>
 
-                  <button
-                    onClick={exportInquiriesCSV}
-                    className="py-2.5 px-3.5 bg-[#021936] hover:bg-[#1a2e4c] text-white rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-                    title="Export Inquiries to CSV"
-                  >
-                    <span className="material-symbols-outlined text-base">download</span>
-                    <span>Export CSV</span>
-                  </button>
+                  {/* Enhanced CSV Export Dropdown */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                      className="py-2.5 px-3.5 bg-[#021936] hover:bg-[#1a2e4c] text-white rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-xs"
+                      title="Export student inquiries to CSV"
+                    >
+                      <span className="material-symbols-outlined text-base text-emerald-400">table_view</span>
+                      <span>Export CSV</span>
+                      <span className="material-symbols-outlined text-sm">
+                        {isExportMenuOpen ? 'arrow_drop_up' : 'arrow_drop_down'}
+                      </span>
+                    </button>
+
+                    {isExportMenuOpen && (
+                      <div
+                        className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl border border-[#dce3ec] py-2 z-30 animate-fadeIn text-xs"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="px-3 py-1.5 border-b border-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          Export Inquiries Dataset (.CSV)
+                        </div>
+
+                        <button
+                          onClick={() => exportInquiriesCSV('all')}
+                          className="w-full px-3 py-2 text-left hover:bg-[#F2F8FD] flex items-center justify-between gap-2 text-[#021936] font-semibold cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-blue-600 text-base">dataset</span>
+                            <span>Export All Records</span>
+                          </div>
+                          <span className="px-2 py-0.5 rounded-full bg-slate-100 font-mono text-[10px] text-slate-600">
+                            {inquiries.length}
+                          </span>
+                        </button>
+
+                        <button
+                          onClick={() => exportInquiriesCSV('filtered')}
+                          className="w-full px-3 py-2 text-left hover:bg-[#F2F8FD] flex items-center justify-between gap-2 text-[#021936] font-semibold cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-emerald-600 text-base">filter_list</span>
+                            <span>Export Filtered Results</span>
+                          </div>
+                          <span className="px-2 py-0.5 rounded-full bg-slate-100 font-mono text-[10px] text-slate-600">
+                            {filteredInquiries.length}
+                          </span>
+                        </button>
+
+                        <div className="px-3 py-1.5 border-t border-slate-100 text-[10px] text-slate-500 italic">
+                          Formatted with UTF-8 BOM for Microsoft Excel &amp; Google Sheets compatibility.
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -436,7 +812,7 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-3 py-1.5 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-semibold text-[#021936] outline-none"
+                  className="px-3 py-1.5 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-semibold text-[#021936] outline-none cursor-pointer"
                 >
                   <option value="all">All Statuses ({inquiries.length})</option>
                   <option value="New">New Lead</option>
@@ -450,7 +826,7 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
                 <select
                   value={gradeFilter}
                   onChange={(e) => setGradeFilter(e.target.value)}
-                  className="px-3 py-1.5 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-semibold text-[#021936] outline-none"
+                  className="px-3 py-1.5 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-semibold text-[#021936] outline-none cursor-pointer"
                 >
                   <option value="all">All Grades</option>
                   <option value="playgroup">Playgroup</option>
@@ -470,15 +846,25 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
                       setGradeFilter('all');
                       setInquirySearch('');
                     }}
-                    className="text-xs text-[#904d00] font-bold hover:underline"
+                    className="text-xs text-[#904d00] font-bold hover:underline cursor-pointer"
                   >
                     Reset Filters
                   </button>
                 )}
 
-                <span className="ml-auto text-slate-500 text-[11px]">
-                  Showing <strong>{filteredInquiries.length}</strong> of {inquiries.length} records
-                </span>
+                <div className="ml-auto flex items-center gap-3">
+                  <span className="text-slate-500 text-[11px]">
+                    Showing <strong>{filteredInquiries.length}</strong> of {inquiries.length} records
+                  </span>
+                  <button
+                    onClick={() => exportInquiriesCSV('filtered')}
+                    className="hidden sm:inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-md border border-emerald-200 transition-colors cursor-pointer"
+                    title="Export currently filtered inquiries to CSV"
+                  >
+                    <span className="material-symbols-outlined text-xs">download</span>
+                    <span>Export CSV ({filteredInquiries.length})</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -612,7 +998,16 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
           </div>
         )}
 
-        {/* ===================== TAB 2: LIVE NEWSLETTER & BULLETINS ===================== */}
+        {/* ===================== TAB 2: UPCOMING UPDATES & NOTICES ===================== */}
+        {activeTab === 'announcements' && (
+          <AnnouncementsManager
+            announcements={announcements}
+            onUpdateAnnouncements={onUpdateAnnouncements}
+            onBackToWebsite={onBackToWebsite}
+          />
+        )}
+
+        {/* ===================== TAB 3: LIVE NEWSLETTER & BULLETINS ===================== */}
         {activeTab === 'newsletters' && (
           <div className="space-y-6 animate-fadeIn">
             {/* Newsletter Control Bar */}
@@ -864,10 +1259,20 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
                 </span>
               </div>
 
-              <div className="pt-2 flex gap-3">
+              <div className="pt-2 flex flex-col sm:flex-row gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => exportInquiriesCSV([selectedInquiry], `Student_${selectedInquiry.id}`)}
+                  className="py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap shadow-xs transition-colors"
+                  title="Export this student record as CSV"
+                >
+                  <span className="material-symbols-outlined text-sm">download</span>
+                  <span>Export Record (.csv)</span>
+                </button>
+
                 <button
                   onClick={() => setSelectedInquiry(null)}
-                  className="w-full py-2.5 bg-[#021936] hover:bg-[#1a2e4c] text-white rounded-lg text-xs font-bold cursor-pointer"
+                  className="flex-1 py-2.5 bg-[#021936] hover:bg-[#1a2e4c] text-white rounded-xl text-xs font-bold cursor-pointer transition-colors"
                 >
                   Close &amp; Save
                 </button>
@@ -1287,6 +1692,22 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
           </div>
         </div>
       )}
+
+      {/* --- MODAL 5: PERIODIC DATA BACKUP & ARCHIVE MODAL --- */}
+      <PeriodicBackupModal
+        isOpen={isBackupModalOpen}
+        onClose={() => setIsBackupModalOpen(false)}
+        currentUser={currentUser}
+        inquiries={inquiries}
+        announcements={announcements}
+        newsletters={newsletters}
+        backupSettings={backupSettings}
+        onUpdateBackupSettings={handleUpdateBackupSettings}
+        secondsRemaining={secondsRemaining}
+        lastBackupTime={lastBackupTime}
+        onTriggerBackup={executeBackup}
+        onRestoreData={handleRestoreBackupData}
+      />
     </div>
   );
 };

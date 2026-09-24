@@ -28,6 +28,53 @@ export const InquiriesDrawer: React.FC<InquiriesDrawerProps> = ({
     return matchesSearch && matchesGrade;
   });
 
+  const handleExportCSV = () => {
+    const listToExport = filtered.length > 0 ? filtered : inquiries;
+    if (listToExport.length === 0) return;
+
+    const headers = [
+      'Application ID',
+      'Student Name',
+      'Grade Seeking',
+      'Primary Phone',
+      'Email Address',
+      'Inquiry Date',
+      'Status',
+      'Parent Message',
+      'Staff Notes'
+    ];
+
+    const escapeCell = (val: string | number | undefined | null) => {
+      if (val === undefined || val === null) return '""';
+      const clean = String(val).replace(/"/g, '""').replace(/\r\n/g, ' ').replace(/[\r\n]/g, ' ');
+      return `"${clean}"`;
+    };
+
+    const rows = listToExport.map((i) => [
+      escapeCell(i.id),
+      escapeCell(i.studentName),
+      escapeCell(i.grade),
+      escapeCell(i.phone),
+      escapeCell(i.email),
+      escapeCell(i.date),
+      escapeCell(i.status),
+      escapeCell(i.message || ''),
+      escapeCell(i.notes || ''),
+    ]);
+
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const dateStr = new Date().toISOString().split('T')[0];
+    link.setAttribute('download', `DWPS_Admissions_Inquiries_${dateStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-xs transition-opacity"
@@ -50,12 +97,22 @@ export const InquiriesDrawer: React.FC<InquiriesDrawerProps> = ({
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-[#1a2e4c] transition-colors cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-xl">close</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportCSV}
+              className="py-1.5 px-3 rounded-lg bg-[#1a2e4c] hover:bg-[#253d63] text-emerald-300 hover:text-emerald-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Download inquiries as CSV"
+            >
+              <span className="material-symbols-outlined text-sm">download</span>
+              <span>Export CSV</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-[#1a2e4c] transition-colors cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-xl">close</span>
+            </button>
+          </div>
         </div>
 
         {/* Search & Filter Bar */}

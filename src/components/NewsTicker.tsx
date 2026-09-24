@@ -2,32 +2,45 @@ import React, { useState, useEffect } from 'react';
 import { SCHOOL_ANNOUNCEMENTS, SchoolAnnouncement } from '../data/schoolData';
 
 interface NewsTickerProps {
+  announcements?: SchoolAnnouncement[];
   onOpenInquiry?: () => void;
   onOpenTourModal?: () => void;
 }
 
-export const NewsTicker: React.FC<NewsTickerProps> = ({ onOpenInquiry, onOpenTourModal }) => {
+export const NewsTicker: React.FC<NewsTickerProps> = ({
+  announcements,
+  onOpenInquiry,
+  onOpenTourModal,
+}) => {
+  const list = announcements && announcements.length > 0 ? announcements : SCHOOL_ANNOUNCEMENTS;
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<SchoolAnnouncement | null>(null);
 
-  // Auto-advance ticker every 5 seconds if not paused
+  // Keep index within bounds if list size changes
   useEffect(() => {
-    if (isPaused) return;
+    if (currentIndex >= list.length) {
+      setCurrentIndex(0);
+    }
+  }, [list.length, currentIndex]);
+
+  // Auto-advance ticker every 4.5 seconds if not paused
+  useEffect(() => {
+    if (isPaused || list.length <= 1) return;
     const timer = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % SCHOOL_ANNOUNCEMENTS.length);
+      setCurrentIndex((prev) => (prev + 1) % list.length);
     }, 4500);
     return () => clearInterval(timer);
-  }, [isPaused]);
+  }, [isPaused, list.length]);
 
-  const activeNotice = SCHOOL_ANNOUNCEMENTS[currentIndex];
+  const activeNotice = list[currentIndex] || list[0];
 
   const handlePrev = () => {
-    setCurrentIndex((prev) => (prev === 0 ? SCHOOL_ANNOUNCEMENTS.length - 1 : prev - 1));
+    setCurrentIndex((prev) => (prev === 0 ? list.length - 1 : prev - 1));
   };
 
   const handleNext = () => {
-    setCurrentIndex((prev) => (prev + 1) % SCHOOL_ANNOUNCEMENTS.length);
+    setCurrentIndex((prev) => (prev + 1) % list.length);
   };
 
   const getCategoryColor = (cat: SchoolAnnouncement['category']) => {
@@ -42,10 +55,14 @@ export const NewsTicker: React.FC<NewsTickerProps> = ({ onOpenInquiry, onOpenTou
         return 'bg-emerald-700 text-white';
       case 'Achievement':
         return 'bg-amber-600 text-white';
+      case 'Notice':
+        return 'bg-purple-700 text-white';
       default:
         return 'bg-slate-800 text-white';
     }
   };
+
+  if (!activeNotice) return null;
 
   return (
     <>
@@ -64,7 +81,7 @@ export const NewsTicker: React.FC<NewsTickerProps> = ({ onOpenInquiry, onOpenTou
               <span className="sm:hidden">News</span>
             </div>
             <span className="text-[11px] font-mono text-slate-600 hidden md:inline">
-              [{currentIndex + 1}/{SCHOOL_ANNOUNCEMENTS.length}]
+              [{currentIndex + 1}/{list.length}]
             </span>
           </div>
 
@@ -82,6 +99,12 @@ export const NewsTicker: React.FC<NewsTickerProps> = ({ onOpenInquiry, onOpenTou
               >
                 {activeNotice.badge}
               </span>
+
+              {activeNotice.isUrgent && (
+                <span className="px-1.5 py-0.5 rounded bg-red-600 text-white text-[9px] font-black uppercase tracking-wider animate-pulse flex-shrink-0">
+                  Urgent
+                </span>
+              )}
 
               <span className="font-semibold text-[#021936] truncate hover:text-[#904d00] transition-colors">
                 {activeNotice.title}
@@ -102,7 +125,7 @@ export const NewsTicker: React.FC<NewsTickerProps> = ({ onOpenInquiry, onOpenTou
           <div className="flex items-center gap-1 flex-shrink-0">
             <button
               onClick={() => setSelectedAnnouncement(activeNotice)}
-              className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#F2F8FD] hover:bg-[#dce3ec] text-[#021936] font-semibold text-[11px] transition-colors border border-[#dce3ec]"
+              className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#F2F8FD] hover:bg-[#dce3ec] text-[#021936] font-semibold text-[11px] transition-colors border border-[#dce3ec] cursor-pointer"
             >
               <span>View Notice</span>
               <span className="material-symbols-outlined text-xs">open_in_new</span>
@@ -111,7 +134,7 @@ export const NewsTicker: React.FC<NewsTickerProps> = ({ onOpenInquiry, onOpenTou
             <button
               onClick={handlePrev}
               aria-label="Previous announcement"
-              className="w-7 h-7 rounded hover:bg-slate-100 text-slate-700 flex items-center justify-center transition-colors"
+              className="w-7 h-7 rounded hover:bg-slate-100 text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
             >
               <span className="material-symbols-outlined text-base">chevron_left</span>
             </button>
@@ -119,7 +142,7 @@ export const NewsTicker: React.FC<NewsTickerProps> = ({ onOpenInquiry, onOpenTou
             <button
               onClick={() => setIsPaused(!isPaused)}
               aria-label={isPaused ? 'Resume auto-scroll' : 'Pause auto-scroll'}
-              className="w-7 h-7 rounded hover:bg-slate-100 text-slate-700 flex items-center justify-center transition-colors"
+              className="w-7 h-7 rounded hover:bg-slate-100 text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
             >
               <span className="material-symbols-outlined text-base">
                 {isPaused ? 'play_arrow' : 'pause'}
@@ -129,7 +152,7 @@ export const NewsTicker: React.FC<NewsTickerProps> = ({ onOpenInquiry, onOpenTou
             <button
               onClick={handleNext}
               aria-label="Next announcement"
-              className="w-7 h-7 rounded hover:bg-slate-100 text-slate-700 flex items-center justify-center transition-colors"
+              className="w-7 h-7 rounded hover:bg-slate-100 text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
             >
               <span className="material-symbols-outlined text-base">chevron_right</span>
             </button>
@@ -142,7 +165,7 @@ export const NewsTicker: React.FC<NewsTickerProps> = ({ onOpenInquiry, onOpenTou
             <span className="text-[10px] font-bold uppercase tracking-wider text-[#904d00] flex-shrink-0">
               Upcoming Dates:
             </span>
-            {SCHOOL_ANNOUNCEMENTS.map((item, idx) => (
+            {list.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setSelectedAnnouncement(item)}
@@ -151,6 +174,9 @@ export const NewsTicker: React.FC<NewsTickerProps> = ({ onOpenInquiry, onOpenTou
                 <span className="w-1.5 h-1.5 rounded-full bg-[#904d00]"></span>
                 <span className="font-semibold text-[#021936]">{item.date}:</span>
                 <span>{item.title}</span>
+                {item.isUrgent && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping"></span>
+                )}
               </button>
             ))}
           </div>

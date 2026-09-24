@@ -27,8 +27,10 @@ import {
   GalleryItem,
   InquiryRecord,
   NewsletterItem,
+  SchoolAnnouncement,
   INITIAL_INQUIRIES,
   INITIAL_NEWSLETTERS,
+  SCHOOL_ANNOUNCEMENTS,
   SCHOOL_INFO
 } from './data/schoolData';
 
@@ -61,6 +63,17 @@ export default function App() {
       console.warn('Failed to parse newsletters from localStorage', e);
     }
     return INITIAL_NEWSLETTERS;
+  });
+
+  // Persistent Announcements & Upcoming Updates State (Live on website immediately!)
+  const [announcements, setAnnouncements] = useState<SchoolAnnouncement[]>(() => {
+    try {
+      const saved = localStorage.getItem('dwps_announcements');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.warn('Failed to parse announcements from localStorage', e);
+    }
+    return SCHOOL_ANNOUNCEMENTS;
   });
 
   // Admin User Session State
@@ -116,6 +129,15 @@ export default function App() {
     }
   };
 
+  const handleUpdateAnnouncements = (updated: SchoolAnnouncement[]) => {
+    setAnnouncements(updated);
+    try {
+      localStorage.setItem('dwps_announcements', JSON.stringify(updated));
+    } catch (e) {
+      console.warn('Failed to save announcements to localStorage', e);
+    }
+  };
+
   const handleAdminLoginSuccess = (user: { name: string; role: string; email: string }) => {
     setAdminUser(user);
     setIsAdminLoginOpen(false);
@@ -136,8 +158,10 @@ export default function App() {
           currentUser={adminUser}
           inquiries={inquiries}
           newsletters={newsletters}
+          announcements={announcements}
           onUpdateInquiries={handleUpdateInquiries}
           onUpdateNewsletters={handleUpdateNewsletters}
+          onUpdateAnnouncements={handleUpdateAnnouncements}
           onLogout={handleAdminLogout}
           onBackToWebsite={() => setCurrentScreen('home')}
         />
@@ -175,6 +199,7 @@ export default function App() {
           <>
             {/* Top of Homepage: Scrolling News Ticker for latest notices & event dates */}
             <NewsTicker
+              announcements={announcements}
               onOpenInquiry={() => {
                 const el = document.getElementById('admissions');
                 if (el) {

@@ -112,40 +112,40 @@ export const TEAM_MEMBERS: TeamMember[] = [
     name: 'Ms. Anuradha',
     role: 'Teacher',
     category: 'Faculty',
-    imageUrl: 'https://assets.zyrosite.com/cdn-cgi/image/format=auto,w=768,fit=crop/UmKLUfDB0p4bPZYE/whatsapp-image-2025-12-06-at-8.15.19-am-Zu7cFePbA1p8pCY8.jpeg',
+    imageUrl: '/assets/faculty/anuradha.jpg',
     description: 'Inspiring young learners with interactive classroom instruction, language fluency development, and engaging experiential activities.',
     qualifications: 'B.A., B.Ed.',
     subjects: ['Language Arts', 'Environmental Studies', 'Social Skills']
   },
   {
-    id: 'bhawna',
-    name: 'Ms. Bhawna',
+    id: 'bhavna',
+    name: 'Ms. Bhavna',
     role: 'Teacher',
     category: 'Faculty',
-    imageUrl: 'https://assets.zyrosite.com/cdn-cgi/image/format=auto,w=768,fit=crop/UmKLUfDB0p4bPZYE/img_20250521_080110-G8eoctaoZhHOg08k.jpg',
-    description: 'Fostering conceptual clarity in foundational STEM and numeracy, encouraging every child to question, explore, and discover joyfully.',
+    imageUrl: '/assets/faculty/bhavna.jpg',
+    description: 'Fostering joyful foundational learning through interactive literacy activities, logic exercises, and hands-on creative crafts.',
     qualifications: 'B.Sc., B.Ed.',
-    subjects: ['Primary Mathematics', 'General Science', 'Logic & Puzzles']
+    subjects: ['Early Childhood Literacy', 'Logic', 'Puzzles', 'Art & Craft']
   },
   {
     id: 'mamta',
     name: 'Ms. Mamta',
     role: 'Teacher',
     category: 'Faculty',
-    imageUrl: 'https://assets.zyrosite.com/cdn-cgi/image/format=auto,w=768,fit=crop/UmKLUfDB0p4bPZYE/whatsapp-image-2025-11-12-at-8.14.28-am-r10iBaPWoXoP7Dfi.jpeg',
+    imageUrl: '/assets/faculty/mamta.jpg',
     description: 'Specializing in early childhood cognitive and motor development, phonics mastery, and creative storytelling in a nurturing atmosphere.',
     qualifications: 'N.T.T., B.A.',
     subjects: ['Early Childhood Literacy', 'Phonics', 'Creative Expression']
   },
   {
-    id: 'rinki',
-    name: 'Ms. Rinki',
+    id: 'anjali',
+    name: 'Ms. Anjali',
     role: 'Teacher',
     category: 'Faculty',
-    imageUrl: 'https://assets.zyrosite.com/cdn-cgi/image/format=auto,w=768,fit=crop/UmKLUfDB0p4bPZYE/whatsapp-image-2025-11-11-at-8.14.11-am-2LlMqPjLpeEUaFN3.jpeg',
-    description: 'Passionate about student engagement, handwriting, grammar, and building strong discipline through warm and supportive encouragement.',
-    qualifications: 'B.A., B.Ed.',
-    subjects: ['Hindi', 'Moral Values', 'Expressive Art']
+    imageUrl: '/assets/faculty/anjali.jpg',
+    description: 'Dedicated mathematics educator demystifying numbers, cultivating logical reasoning, mental math agility, and real-world problem-solving.',
+    qualifications: 'B.Sc. (Mathematics), B.Ed.',
+    subjects: ['Mathematics', 'Mental Math', 'Logical Reasoning']
   },
   {
     id: 'krishna',
@@ -158,14 +158,34 @@ export const TEAM_MEMBERS: TeamMember[] = [
     subjects: ['English Comprehension', 'Social Studies', 'Digital Lessons']
   },
   {
-    id: 'hema',
-    name: 'Ms. Hema',
+    id: 'neha',
+    name: 'Ms. Neha',
     role: 'Teacher',
     category: 'Faculty',
-    imageUrl: 'https://assets.zyrosite.com/cdn-cgi/image/format=auto,w=768,fit=crop/UmKLUfDB0p4bPZYE/gemini_generated_image_h401kph401kph401-1WYhK4UcLLVaq2VR.png',
-    description: 'Dedicated to early years sensory play, rhythm, physical movement, and creating a cheerful, secure daily routine for our youngest learners.',
-    qualifications: 'N.T.T., D.El.Ed.',
-    subjects: ['Pre-Primary Foundation', 'Rhymes & Rhythm', 'Art & Craft']
+    imageUrl: '/assets/faculty/neha.jpg',
+    description: 'Integrating environmental awareness with foundational digital literacy, teaching students respect for nature alongside computer fundamentals and IT skills.',
+    qualifications: 'B.C.A., B.Ed.',
+    subjects: ['EVS & Computer', 'Environmental Studies', 'Computer Fundamentals']
+  },
+  {
+    id: 'geeta',
+    name: 'Ms. Geeta',
+    role: 'Teacher',
+    category: 'Faculty',
+    imageUrl: '/assets/faculty/geeta.jpg',
+    description: 'Guiding UKG learners through foundational early childhood literacy, systematic phonics, speech clarity, and joyous expressive learning.',
+    qualifications: 'N.T.T., B.A., Early Childhood Education Specialist',
+    subjects: ['UKG', 'Early Childhood Literacy', 'Phonics']
+  },
+  {
+    id: 'pavitra',
+    name: 'Ms. Pavitra',
+    role: 'Teacher',
+    category: 'Faculty',
+    imageUrl: '/assets/faculty/pavitra.jpg',
+    description: 'Dedicated early childhood educator cultivating foundational literacy, joyful vocabulary building, storytelling confidence, and phonics mastery.',
+    qualifications: 'N.T.T., B.A., Early Childhood Education Certified',
+    subjects: ['Early Childhood Literacy', 'Phonics & Vocabulary', 'Creative Storytelling']
   }
 ];
 
@@ -293,7 +313,7 @@ export const BUS_ROUTES = [
 
 export interface SchoolAnnouncement {
   id: string;
-  category: 'Admissions' | 'Events' | 'Academic' | 'Sports' | 'Achievement';
+  category: 'Admissions' | 'Events' | 'Academic' | 'Sports' | 'Achievement' | 'Notice';
   title: string;
   date: string;
   badge: string;

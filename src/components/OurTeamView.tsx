@@ -118,6 +118,7 @@ export const OurTeamView: React.FC<OurTeamViewProps> = ({ onBookTourClick, onApp
                         alt={member.name}
                         className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
                         loading="lazy"
+                        referrerPolicy="no-referrer"
                         onError={(e) => {
                           e.currentTarget.src = 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=600&q=80';
                         }}
@@ -188,6 +189,7 @@ export const OurTeamView: React.FC<OurTeamViewProps> = ({ onBookTourClick, onApp
                         alt={member.name}
                         className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
                         loading="lazy"
+                        referrerPolicy="no-referrer"
                         onError={(e) => {
                           e.currentTarget.src = 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=600&q=80';
                         }}
@@ -308,6 +310,7 @@ export const OurTeamView: React.FC<OurTeamViewProps> = ({ onBookTourClick, onApp
                 src={activeMemberModal.imageUrl}
                 alt={activeMemberModal.name}
                 className="w-full h-full object-cover object-top"
+                referrerPolicy="no-referrer"
               />
               <button
                 onClick={() => setActiveMemberModal(null)}
