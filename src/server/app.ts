@@ -5,11 +5,21 @@ export const app = express();
 
 app.use(express.json());
 
+// Global request & database availability logger for Vercel Runtime Logs
+app.use((req, _res, next) => {
+  const method = req.method;
+  const url = req.url;
+  const dbConfigured = isDatabaseConfigured();
+  console.log(`[DWPS API] 🌐 ${method} ${url} | Neon DATABASE_URL: ${dbConfigured ? 'CONNECTED' : 'NOT SET (check Vercel env & redeploy)'}`);
+  next();
+});
+
 // Initialize DB schema on first startup if DATABASE_URL is provided
 let dbInitAttempted = false;
 async function ensureDbInit() {
   if (!dbInitAttempted && isDatabaseConfigured()) {
     dbInitAttempted = true;
+    console.log('[NeonDB] 🚀 Triggering first-time schema verification/initialization...');
     await initializeDatabase();
   }
 }
@@ -18,6 +28,7 @@ async function ensureDbInit() {
 app.get('/api/health', async (_req, res) => {
   await ensureDbInit();
   const status = await checkDbConnection();
+  console.log(`[NeonDB] Health check requested. Status ok: ${status.ok}, tables count: ${status.tables?.length || 0}`);
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -27,6 +38,7 @@ app.get('/api/health', async (_req, res) => {
 
 // Explicit manual trigger to initialize and verify database tables
 app.all(['/api/db/init', '/api/init-db'], async (_req, res) => {
+  console.log('[NeonDB] ⚡ Manual DB initialization requested via /api/db/init');
   const initResult = await initializeDatabase();
   const status = await checkDbConnection();
   res.json({
@@ -47,10 +59,12 @@ app.get('/api/inquiries', async (_req, res) => {
   await ensureDbInit();
   const sql = getSql();
   if (!sql) {
+    console.log('[NeonDB] ⚠️ [GET /api/inquiries] DATABASE_URL is NOT set. Returning empty local data.');
     return res.json({ source: 'local', data: [] });
   }
 
   try {
+    console.log('[NeonDB] 🔍 [GET /api/inquiries] Querying table "dwps_inquiries" from Neon...');
     const rows = await sql`
       SELECT 
         id,
@@ -68,9 +82,10 @@ app.get('/api/inquiries', async (_req, res) => {
       FROM dwps_inquiries
       ORDER BY created_at DESC
     `;
+    console.log(`[NeonDB] ✅ [GET /api/inquiries] Retrieved ${rows.length} inquiries from Neon DB.`);
     return res.json({ source: 'neon', data: rows });
   } catch (err: any) {
-    console.error('Error fetching inquiries from Neon:', err);
+    console.error('[NeonDB] ❌ [GET /api/inquiries] Error querying Neon:', err);
     return res.status(500).json({ error: 'Failed to fetch inquiries', details: err?.message });
   }
 });
@@ -81,6 +96,7 @@ app.post('/api/inquiries', async (req, res) => {
   const record = req.body;
 
   if (!record || !record.studentName || !record.phone) {
+    console.warn('[NeonDB] ⚠️ [POST /api/inquiries] Bad request: Missing studentName or phone.');
     return res.status(400).json({ error: 'Missing required student name or contact phone.' });
   }
 
@@ -88,10 +104,12 @@ app.post('/api/inquiries', async (req, res) => {
   const dateStr = record.date || new Date().toISOString().split('T')[0];
 
   if (!sql) {
-    return res.json({ source: 'local', saved: false, message: 'Database not connected, saved to local state.' });
+    console.warn('[NeonDB] ⚠️ [POST /api/inquiries] DATABASE_URL is NOT set in environment variables! Inquiry cannot be written to Neon.');
+    return res.json({ source: 'local', saved: false, message: 'Database not connected in Vercel environment variables.' });
   }
 
   try {
+    console.log(`[NeonDB] 💾 [POST /api/inquiries] Inserting inquiry for "${record.studentName}" (Grade: ${record.grade}) into Neon table "dwps_inquiries"...`);
     await sql`
       INSERT INTO dwps_inquiries (
         id, student_name, phone, email, grade, message, date, status, notes, priority, follow_up_date
@@ -119,9 +137,10 @@ app.post('/api/inquiries', async (req, res) => {
         priority = EXCLUDED.priority,
         follow_up_date = EXCLUDED.follow_up_date;
     `;
+    console.log(`[NeonDB] 🎉 [POST /api/inquiries] Successfully inserted/updated record ID "${id}" in Neon!`);
     return res.json({ source: 'neon', saved: true, id });
   } catch (err: any) {
-    console.error('Error saving inquiry to Neon:', err);
+    console.error('[NeonDB] ❌ [POST /api/inquiries] Error saving inquiry to Neon:', err);
     return res.status(500).json({ error: 'Failed to save inquiry to database', details: err?.message });
   }
 });
@@ -196,10 +215,12 @@ app.post('/api/tour-bookings', async (req, res) => {
   const id = record.id || `tour-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
 
   if (!sql) {
+    console.warn('[NeonDB] ⚠️ [POST /api/tour-bookings] DATABASE_URL is not set. Saving to local session.');
     return res.json({ source: 'local', saved: false, message: 'Saved in local browser session.' });
   }
 
   try {
+    console.log(`[NeonDB] 💾 [POST /api/tour-bookings] Saving tour booking for "${record.parentName}" (Date: ${record.preferredDate})...`);
     await sql`
       INSERT INTO dwps_tour_bookings (
         id, parent_name, phone, email, preferred_date, preferred_slot, grade_interested, notes, status
@@ -215,9 +236,10 @@ app.post('/api/tour-bookings', async (req, res) => {
         ${record.status || 'Confirmed'}
       )
     `;
+    console.log(`[NeonDB] 🎉 [POST /api/tour-bookings] Successfully saved tour booking ID "${id}" in Neon!`);
     return res.json({ source: 'neon', saved: true, id });
   } catch (err: any) {
-    console.error('Error saving tour booking to Neon:', err);
+    console.error('[NeonDB] ❌ [POST /api/tour-bookings] Error saving tour booking to Neon:', err);
     return res.status(500).json({ error: 'Failed to save tour booking', details: err?.message });
   }
 });
