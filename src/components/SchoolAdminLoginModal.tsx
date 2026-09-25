@@ -71,7 +71,7 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
         onClose();
       } else {
         setIsLoading(false);
-        setErrorMsg('Galat ID ya Password. Kripya naye credentials darj karein ya neeche diye gaye "Auto Fill" button par click karein.');
+        setErrorMsg('Galat ID ya Password. Kripya sahi institutional credentials darj karein.');
       }
     }, 350);
   };
@@ -126,34 +126,6 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
             </div>
           )}
 
-          {/* 1-Click Auto Fill Credentials Box */}
-          <div className="p-3 rounded-xl bg-amber-50/90 border border-amber-200/90 text-xs flex items-center justify-between gap-3">
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-1.5 font-bold text-[#021936]">
-                <span className="material-symbols-outlined text-amber-700 text-sm">vpn_key</span>
-                <span>Authorized School Credentials</span>
-              </div>
-              <div className="text-[11px] text-slate-600 font-mono">
-                ID: <strong className="text-[#021936]">Rahul@dwpsballabgarh.org</strong>
-              </div>
-              <div className="text-[11px] text-slate-600 font-mono">
-                Password: <strong className="text-[#021936]">rahul#dwps2026</strong>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setLoginId('Rahul@dwpsballabgarh.org');
-                setPassword('rahul#dwps2026');
-                setErrorMsg('');
-              }}
-              className="px-3 py-1.5 bg-[#021936] hover:bg-[#904d00] text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0 shadow-2xs flex items-center gap-1"
-            >
-              <span className="material-symbols-outlined text-xs">touch_app</span>
-              <span>Auto-Fill</span>
-            </button>
-          </div>
-
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-[#021936] uppercase tracking-wider mb-1.5">
@@ -171,7 +143,7 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
                   spellCheck="false"
                   value={loginId}
                   onChange={(e) => setLoginId(e.target.value)}
-                  placeholder="Rahul@dwpsballabgarh.org"
+                  placeholder="Institutional ID (e.g. name@dwpsballabgarh.org)"
                   className="w-full h-11 pl-10 pr-3 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-semibold text-[#021936] focus:border-[#904d00] focus:bg-white outline-none transition-all"
                 />
               </div>
@@ -193,7 +165,7 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
                   spellCheck="false"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="rahul#dwps2026"
+                  placeholder="••••••••"
                   className="w-full h-11 pl-10 pr-10 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-semibold text-[#021936] focus:border-[#904d00] focus:bg-white outline-none transition-all"
                 />
                 <button
