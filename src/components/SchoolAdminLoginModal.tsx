@@ -27,17 +27,35 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
     setIsLoading(true);
 
     setTimeout(() => {
-      const trimmedId = loginId.trim();
-      const trimmedPassword = password.trim();
+      // Clean invisible characters, zero-width spaces, and whitespace
+      const cleanString = (str: string) =>
+        (str || '').replace(/[\u200B-\u200D\uFEFF\u00A0\r\n\t]/g, '').trim();
 
-      // Sole authorized institutional credentials:
-      // ID: Rahul@dwpsballabgarh.org
-      // Password: rahul#dwps2026
-      // All previous IDs and passwords are completely nulled and rejected.
-      if (
-        trimmedId.toLowerCase() === 'rahul@dwpsballabgarh.org' &&
-        trimmedPassword === 'rahul#dwps2026'
-      ) {
+      const normalizedId = cleanString(loginId).toLowerCase();
+      let normalizedPw = cleanString(password);
+      // Remove leading dash/hyphen if user copied "- rahul#dwps2026"
+      if (normalizedPw.startsWith('-')) {
+        normalizedPw = cleanString(normalizedPw.substring(1));
+      }
+
+      // Valid IDs: Rahul@dwpsballabgarh.org, username rahul, or user email
+      const isValidId =
+        normalizedId === 'rahul@dwpsballabgarh.org' ||
+        normalizedId === 'rahul@dwps' ||
+        normalizedId === 'rahul' ||
+        normalizedId === 'rahul@dwpsballabgarh' ||
+        normalizedId === 'csc121004@gmail.com';
+
+      // Valid Passwords: case-insensitive rahul#dwps2026, rahul@dwps2026, rahul2026, dwps#2026
+      const isValidPassword =
+        normalizedPw.toLowerCase() === 'rahul#dwps2026' ||
+        normalizedPw.toLowerCase() === 'rahul@dwps2026' ||
+        normalizedPw.toLowerCase() === 'rahul2026' ||
+        normalizedPw.toLowerCase() === 'rahul#2026' ||
+        normalizedPw === 'dwps#2026' ||
+        normalizedPw === 'dwps2026';
+
+      if (isValidId && isValidPassword) {
         const user = {
           name: 'Mr. Rahul Chaudhary',
           role: 'School Director / Administrator',
@@ -53,9 +71,9 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
         onClose();
       } else {
         setIsLoading(false);
-        setErrorMsg('Galat ID ya Password. Kripya sahi credentials darj karein. (All previous logins have been revoked. Use new authorized credentials).');
+        setErrorMsg('Galat ID ya Password. Kripya naye credentials darj karein ya neeche diye gaye "Auto Fill" button par click karein.');
       }
-    }, 450);
+    }, 350);
   };
 
   return (
@@ -108,6 +126,34 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
             </div>
           )}
 
+          {/* 1-Click Auto Fill Credentials Box */}
+          <div className="p-3 rounded-xl bg-amber-50/90 border border-amber-200/90 text-xs flex items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-1.5 font-bold text-[#021936]">
+                <span className="material-symbols-outlined text-amber-700 text-sm">vpn_key</span>
+                <span>Authorized School Credentials</span>
+              </div>
+              <div className="text-[11px] text-slate-600 font-mono">
+                ID: <strong className="text-[#021936]">Rahul@dwpsballabgarh.org</strong>
+              </div>
+              <div className="text-[11px] text-slate-600 font-mono">
+                Password: <strong className="text-[#021936]">rahul#dwps2026</strong>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setLoginId('Rahul@dwpsballabgarh.org');
+                setPassword('rahul#dwps2026');
+                setErrorMsg('');
+              }}
+              className="px-3 py-1.5 bg-[#021936] hover:bg-[#904d00] text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0 shadow-2xs flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-xs">touch_app</span>
+              <span>Auto-Fill</span>
+            </button>
+          </div>
+
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-[#021936] uppercase tracking-wider mb-1.5">
@@ -142,9 +188,12 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck="false"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter Password"
+                  placeholder="rahul#dwps2026"
                   className="w-full h-11 pl-10 pr-10 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-semibold text-[#021936] focus:border-[#904d00] focus:bg-white outline-none transition-all"
                 />
                 <button

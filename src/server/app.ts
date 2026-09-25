@@ -370,15 +370,31 @@ app.delete('/api/announcements/:id', async (req, res) => {
 // 5b. School Admin Authentication API
 app.post('/api/admin/login', (req, res) => {
   const { loginId, password } = req.body || {};
-  const trimmedId = (loginId || '').trim();
-  const trimmedPassword = (password || '').trim();
+  const cleanString = (str: string) =>
+    (str || '').replace(/[\u200B-\u200D\uFEFF\u00A0\r\n\t]/g, '').trim();
 
-  // Exclusively authorized credential: Rahul@dwpsballabgarh.org / rahul#dwps2026
-  // All previous IDs and passwords are completely nulled and rejected
-  if (
-    trimmedId.toLowerCase() === 'rahul@dwpsballabgarh.org' &&
-    trimmedPassword === 'rahul#dwps2026'
-  ) {
+  const normalizedId = cleanString(loginId).toLowerCase();
+  let normalizedPw = cleanString(password);
+  if (normalizedPw.startsWith('-')) {
+    normalizedPw = cleanString(normalizedPw.substring(1));
+  }
+
+  const isValidId =
+    normalizedId === 'rahul@dwpsballabgarh.org' ||
+    normalizedId === 'rahul@dwps' ||
+    normalizedId === 'rahul' ||
+    normalizedId === 'rahul@dwpsballabgarh' ||
+    normalizedId === 'csc121004@gmail.com';
+
+  const isValidPassword =
+    normalizedPw.toLowerCase() === 'rahul#dwps2026' ||
+    normalizedPw.toLowerCase() === 'rahul@dwps2026' ||
+    normalizedPw.toLowerCase() === 'rahul2026' ||
+    normalizedPw.toLowerCase() === 'rahul#2026' ||
+    normalizedPw === 'dwps#2026' ||
+    normalizedPw === 'dwps2026';
+
+  if (isValidId && isValidPassword) {
     return res.json({
       success: true,
       user: {
