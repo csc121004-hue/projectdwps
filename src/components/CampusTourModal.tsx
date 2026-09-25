@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { SCHOOL_INFO } from '../data/schoolData';
+import { SCHOOL_INFO, InquiryRecord } from '../data/schoolData';
 import { api } from '../services/api';
 
 interface CampusTourModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onTourBooked?: (inquiry: InquiryRecord) => void;
 }
 
-export const CampusTourModal: React.FC<CampusTourModalProps> = ({ isOpen, onClose }) => {
+export const CampusTourModal: React.FC<CampusTourModalProps> = ({ isOpen, onClose, onTourBooked }) => {
   const [formData, setFormData] = useState({
     parentName: '',
     phone: '',
@@ -38,7 +39,25 @@ export const CampusTourModal: React.FC<CampusTourModalProps> = ({ isOpen, onClos
       grade: formData.grade,
     });
 
-    // Save to Neon database
+    const newInquiry: InquiryRecord = {
+      id: passId,
+      studentName: formData.parentName,
+      phone: formData.phone,
+      email: '',
+      grade: formData.grade,
+      message: `🏫 School Campus Tour Appointment for ${formData.date} (${formData.timeSlot}). Focus areas: ${formData.interests}`,
+      date: new Date().toISOString().split('T')[0],
+      status: 'Tour Scheduled',
+      priority: 'High',
+      notes: `Tour Pass ID: ${passId} | Slot: ${formData.timeSlot} | Date: ${formData.date} | Interests: ${formData.interests}`,
+      followUpDate: formData.date
+    };
+
+    if (onTourBooked) {
+      onTourBooked(newInquiry);
+    }
+
+    // Save to Neon database tour bookings
     api.saveTourBooking({
       id: passId,
       parentName: formData.parentName,
@@ -48,6 +67,9 @@ export const CampusTourModal: React.FC<CampusTourModalProps> = ({ isOpen, onClos
       gradeInterested: formData.grade,
       notes: formData.interests
     }).catch(console.warn);
+
+    // Also persist as an inquiry so it syncs immediately with all lead endpoints
+    api.saveInquiry(newInquiry).catch(console.warn);
   };
 
   return (

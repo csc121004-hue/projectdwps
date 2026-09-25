@@ -66,6 +66,34 @@ app.get('/api/inquiries', async (_req, res) => {
 
   try {
     console.log('[NeonDB] 🔍 [GET /api/inquiries] Querying table "dwps_inquiries" from Neon...');
+
+    // Auto-sync any tour bookings that do not exist in dwps_inquiries yet
+    try {
+      await sql`
+        INSERT INTO dwps_inquiries (
+          id, student_name, phone, email, grade, message, date, status, notes, priority, follow_up_date
+        )
+        SELECT 
+          tb.id,
+          tb.parent_name,
+          tb.phone,
+          COALESCE(tb.email, ''),
+          COALESCE(NULLIF(tb.grade_interested, ''), 'Nursery'),
+          '🏫 Campus Tour Scheduled: ' || COALESCE(tb.preferred_date, '') || ' (' || COALESCE(tb.preferred_slot, '') || ')',
+          COALESCE(NULLIF(tb.preferred_date, ''), CURRENT_DATE::text),
+          'Tour Scheduled',
+          'Tour Pass ID: ' || tb.id || ' | Slot: ' || COALESCE(tb.preferred_slot, '') || ' | ' || COALESCE(tb.notes, ''),
+          'High',
+          tb.preferred_date
+        FROM dwps_tour_bookings tb
+        LEFT JOIN dwps_inquiries inq ON inq.id = tb.id
+        WHERE inq.id IS NULL
+        ON CONFLICT (id) DO NOTHING;
+      `;
+    } catch (syncErr) {
+      console.warn('[NeonDB] Note on tour-bookings auto-sync to inquiries:', syncErr);
+    }
+
     const rows = await sql`
       SELECT 
         id,
@@ -237,7 +265,34 @@ app.post('/api/tour-bookings', async (req, res) => {
         ${record.status || 'Confirmed'}
       )
     `;
-    console.log(`[NeonDB] 🎉 [POST /api/tour-bookings] Successfully saved tour booking ID "${id}" in Neon!`);
+
+    // Also mirror to dwps_inquiries so it immediately appears in the Lead Board
+    const inquiryMsg = `🏫 Campus Tour Scheduled: ${record.preferredDate || ''} (${record.preferredSlot || 'Morning Batch'}). Interests: ${record.notes || 'Campus walkthrough'}`;
+    const today = new Date().toISOString().split('T')[0];
+    await sql`
+      INSERT INTO dwps_inquiries (
+        id, student_name, phone, email, grade, message, date, status, notes, priority, follow_up_date
+      ) VALUES (
+        ${id},
+        ${record.parentName},
+        ${record.phone},
+        ${record.email || ''},
+        ${record.gradeInterested || 'Nursery'},
+        ${inquiryMsg},
+        ${today},
+        'Tour Scheduled',
+        ${'Tour Pass ID: ' + id + ' | Slot: ' + (record.preferredSlot || '') + ' | ' + (record.notes || '')},
+        'High',
+        ${record.preferredDate || today}
+      )
+      ON CONFLICT (id) DO UPDATE SET
+        student_name = EXCLUDED.student_name,
+        phone = EXCLUDED.phone,
+        status = 'Tour Scheduled',
+        notes = EXCLUDED.notes;
+    `;
+
+    console.log(`[NeonDB] 🎉 [POST /api/tour-bookings] Successfully saved tour booking ID "${id}" and mirrored to Lead Board in Neon!`);
     return res.json({ source: 'neon', saved: true, id });
   } catch (err: any) {
     console.error('[NeonDB] ❌ [POST /api/tour-bookings] Error saving tour booking to Neon:', err);

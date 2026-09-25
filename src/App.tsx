@@ -522,6 +522,7 @@ export default function App() {
       <CampusTourModal
         isOpen={isTourModalOpen}
         onClose={() => setIsTourModalOpen(false)}
+        onTourBooked={handleNewInquirySubmitted}
       />
 
       {/* 8. Admissions Office Inquiries Desk Drawer */}
