@@ -26,11 +26,50 @@ export const EXPECTED_TABLES = [
   'dwps_tour_bookings',
   'dwps_newsletters',
   'dwps_announcements',
-  'dwps_newsletter_subscribers'
+  'dwps_newsletter_subscribers',
+  'dwps_fee_structures'
 ];
 
+export const findDatabaseUrl = (): { url: string | null; detectedKey: string | null; availableEnvKeys: string[] } => {
+  // Collect non-sensitive keys currently visible to Node runtime
+  const allKeys = Object.keys(process.env);
+  const relevantKeys = allKeys.filter(k => 
+    !k.startsWith('npm_') && 
+    !k.startsWith('_') && 
+    !k.startsWith('VERCEL_ANALYTICS') &&
+    k !== 'PATH'
+  );
+
+  // 1. Direct standard check
+  if (process.env.DATABASE_URL && process.env.DATABASE_URL.trim() !== '') {
+    return { url: process.env.DATABASE_URL.trim(), detectedKey: 'DATABASE_URL', availableEnvKeys: relevantKeys };
+  }
+
+  // 2. Check case-insensitive and trimmed key names
+  for (const [key, val] of Object.entries(process.env)) {
+    if (!val || typeof val !== 'string') continue;
+    const cleanKey = key.trim().toUpperCase();
+    if (['DATABASE_URL', 'POSTGRES_URL', 'POSTGRES_PRISMA_URL', 'NEON_DATABASE_URL', 'NEON_URL', 'DB_URL'].includes(cleanKey)) {
+      if (val.trim() !== '') {
+        return { url: val.trim(), detectedKey: key, availableEnvKeys: relevantKeys };
+      }
+    }
+  }
+
+  // 3. Fallback: Check if user named the variable "Value", "Key", or anything else that contains a postgres connection string
+  for (const [key, val] of Object.entries(process.env)) {
+    if (!val || typeof val !== 'string') continue;
+    const trimmedVal = val.trim();
+    if (trimmedVal.startsWith('postgres://') || trimmedVal.startsWith('postgresql://')) {
+      return { url: trimmedVal, detectedKey: key, availableEnvKeys: relevantKeys };
+    }
+  }
+
+  return { url: null, detectedKey: null, availableEnvKeys: relevantKeys };
+};
+
 export const isDatabaseConfigured = (): boolean => {
-  return Boolean(process.env.DATABASE_URL && process.env.DATABASE_URL.trim() !== '');
+  return Boolean(findDatabaseUrl().url);
 };
 
 export const getMaskedConnectionString = (url?: string): string => {
@@ -46,9 +85,9 @@ export const getMaskedConnectionString = (url?: string): string => {
 };
 
 export const getSql = () => {
-  const url = process.env.DATABASE_URL;
-  if (!url || url.trim() === '') return null;
-  return neon(url.trim());
+  const { url } = findDatabaseUrl();
+  if (!url) return null;
+  return neon(url);
 };
 
 /**
@@ -61,15 +100,22 @@ export async function checkDbConnection(): Promise<DbStatus> {
     console.log(msg);
   };
 
-  const url = process.env.DATABASE_URL?.trim();
+  const { url, detectedKey, availableEnvKeys } = findDatabaseUrl();
   if (!url) {
-    log('[NeonDB] ⚠️ DATABASE_URL is not set. Running in local session fallback mode.');
+    const keysList = availableEnvKeys.length > 0 ? availableEnvKeys.join(', ') : 'none';
+    log(`[NeonDB] ⚠️ DATABASE_URL is not detected in environment variables.`);
+    log(`[NeonDB] ℹ️ Non-sensitive env keys currently present in Vercel runtime: [ ${keysList} ]`);
+    log(`[NeonDB] 💡 ACTION REQUIRED: In Vercel, after adding/editing an Environment Variable, you MUST click "Redeploy" under Deployments. Existing deployments never receive new variables automatically.`);
     return {
       ok: false,
       configured: false,
-      message: 'DATABASE_URL is not set in environment variables. Running in local fallback mode.',
+      message: `DATABASE_URL is not set in this deployment. Available env keys: [ ${keysList} ]. Please ensure the Key is named DATABASE_URL and trigger a Redeploy in Vercel.`,
       logs
     };
+  }
+
+  if (detectedKey !== 'DATABASE_URL') {
+    log(`[NeonDB] ℹ️ Note: Detected database connection string under environment key "${detectedKey}". Using it!`);
   }
 
   log(`[NeonDB] 🔍 Connecting to Neon database: ${getMaskedConnectionString(url)}`);
@@ -114,6 +160,9 @@ export async function checkDbConnection(): Promise<DbStatus> {
           return Number(res[0]?.c) || 0;
         } else if (tableName === 'dwps_newsletter_subscribers') {
           const res = await sql`SELECT COUNT(*)::int as c FROM dwps_newsletter_subscribers`;
+          return Number(res[0]?.c) || 0;
+        } else if (tableName === 'dwps_fee_structures') {
+          const res = await sql`SELECT COUNT(*)::int as c FROM dwps_fee_structures`;
           return Number(res[0]?.c) || 0;
         }
       } catch {
@@ -173,15 +222,22 @@ export async function initializeDatabase(): Promise<{ success: boolean; message:
     console.log(msg);
   };
 
-  const url = process.env.DATABASE_URL?.trim();
+  const { url, detectedKey, availableEnvKeys } = findDatabaseUrl();
   if (!url) {
-    log('[NeonDB] ⚠️ Cannot initialize database: DATABASE_URL is not set.');
+    const keysList = availableEnvKeys.length > 0 ? availableEnvKeys.join(', ') : 'none';
+    log(`[NeonDB] ⚠️ Cannot initialize database: DATABASE_URL is not set.`);
+    log(`[NeonDB] ℹ️ Non-sensitive env keys currently present in Vercel runtime: [ ${keysList} ]`);
+    log(`[NeonDB] 💡 Remember: In Vercel, after saving DATABASE_URL, you MUST trigger a Redeploy under Deployments!`);
     return {
       success: false,
-      message: 'DATABASE_URL is not configured.',
+      message: `DATABASE_URL is not configured in this deployment. Available keys: [ ${keysList} ]. Please check Vercel Environment Variables and Redeploy.`,
       tables: [],
       logs
     };
+  }
+
+  if (detectedKey !== 'DATABASE_URL') {
+    log(`[NeonDB] ℹ️ Initializing using database URL found in env key "${detectedKey}"`);
   }
 
   log(`[NeonDB] 🚀 Starting table initialization on Neon database...`);
@@ -272,6 +328,141 @@ export async function initializeDatabase(): Promise<{ success: boolean; message:
       );
     `;
     log('[NeonDB] ✓ Table verified/created: dwps_newsletter_subscribers');
+
+    // 6. Fee structures & tuition rates table
+    await sql`
+      CREATE TABLE IF NOT EXISTS dwps_fee_structures (
+        id VARCHAR(64) PRIMARY KEY,
+        grade_name VARCHAR(255) NOT NULL,
+        category VARCHAR(100) NOT NULL,
+        age_group VARCHAR(100),
+        monthly_tuition INT NOT NULL,
+        annual_charges INT NOT NULL,
+        activity_smart_class INT NOT NULL,
+        admission_fee INT NOT NULL,
+        security_deposit INT NOT NULL,
+        description TEXT,
+        features JSONB DEFAULT '[]'::jsonb,
+        display_order INT DEFAULT 0,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+    log('[NeonDB] ✓ Table verified/created: dwps_fee_structures');
+
+    // Seed default fee structures if empty
+    const feeCount = await sql`SELECT COUNT(*)::int as count FROM dwps_fee_structures`;
+    if ((feeCount[0]?.count || 0) === 0) {
+      log('[NeonDB] 🌿 Seeding initial grade fee structures into dwps_fee_structures...');
+      const defaultFees = [
+        {
+          id: 'playgroup',
+          gradeName: 'Playgroup (Toddlers)',
+          category: 'Early Years',
+          ageGroup: '2.5 – 3 Years',
+          monthlyTuition: 2600,
+          annualCharges: 3500,
+          activitySmartClass: 400,
+          admissionFee: 4000,
+          securityDeposit: 1500,
+          description: 'Montessori play modules, gross motor skills play arena, sensory toy learning, and storytelling.',
+          features: ['1:15 Student-Teacher Ratio', 'Child-Safe Soft Play Area', 'Mid-day healthy snack monitoring', 'Air-cooled child suites']
+        },
+        {
+          id: 'nursery',
+          gradeName: 'Nursery',
+          category: 'Early Years',
+          ageGroup: '3 – 4 Years',
+          monthlyTuition: 2800,
+          annualCharges: 3800,
+          activitySmartClass: 450,
+          admissionFee: 4500,
+          securityDeposit: 1500,
+          description: 'Early childhood phonics, numeracy readiness, creative arts, rhythm, and social confidence building.',
+          features: ['Phonics & Pre-reading Modules', 'Interactive smart audiovisuals', 'Indoor & outdoor recreation', 'Parent consultation portal']
+        },
+        {
+          id: 'lkg',
+          gradeName: 'L.KG (Lower KG)',
+          category: 'Early Years',
+          ageGroup: '4 – 5 Years',
+          monthlyTuition: 3000,
+          annualCharges: 4000,
+          activitySmartClass: 500,
+          admissionFee: 4500,
+          securityDeposit: 1500,
+          description: 'Foundational literacy in English & Hindi, practical math concepts, expressive speaking, and fine arts.',
+          features: ['Bilingual speech foundations', 'Early STEM science puzzles', 'Music, dance & physical fitness', 'Pre-writing & motor skills']
+        },
+        {
+          id: 'ukg',
+          gradeName: 'U.KG (Upper KG)',
+          category: 'Early Years',
+          ageGroup: '5 – 6 Years',
+          monthlyTuition: 3200,
+          annualCharges: 4200,
+          activitySmartClass: 500,
+          admissionFee: 4800,
+          securityDeposit: 1500,
+          description: 'Pre-primary graduation stage focusing on advanced phonics, sentence formation, mental math, and seamless transition to Grade 1.',
+          features: ['Smooth Grade 1 transition kit', 'Sentence formation & phonics mastery', 'Early science & environmental exploration', 'Confidence & stage speech presentation']
+        },
+        {
+          id: 'grade-1-2',
+          gradeName: 'Grade 1 & 2',
+          category: 'Primary Wing',
+          ageGroup: '6 – 7.5 Years',
+          monthlyTuition: 3300,
+          annualCharges: 4500,
+          activitySmartClass: 550,
+          admissionFee: 5000,
+          securityDeposit: 2000,
+          description: 'Formal CBSE aligned curriculum with interactive digital boards, foundational arithmetic, and environmental studies.',
+          features: ['Smart Classroom Digitization', 'Math lab & hands-on manipulatives', 'Weekly sports & physical training', 'Reading club & library access']
+        },
+        {
+          id: 'grade-3-5',
+          gradeName: 'Grade 3 to 5',
+          category: 'Primary Wing',
+          ageGroup: '7.5 – 10.5 Years',
+          monthlyTuition: 3600,
+          annualCharges: 4800,
+          activitySmartClass: 600,
+          admissionFee: 5000,
+          securityDeposit: 2000,
+          description: 'Conceptual STEM science, English vocabulary mastery, computer lab literacy, and competitive sports.',
+          features: ['Computer & Coding basics', 'Science experimentation kits', 'Public speaking & debate rounds', 'Inter-house competitions']
+        },
+        {
+          id: 'grade-6-8',
+          gradeName: 'Class 6 to 8 (Middle Wing)',
+          category: 'Middle Wing',
+          ageGroup: '11 – 14 Years',
+          monthlyTuition: 4000,
+          annualCharges: 5200,
+          activitySmartClass: 700,
+          admissionFee: 5500,
+          securityDeposit: 2500,
+          description: 'Rigorous academic preparation, advanced science projects, digital design, and leadership initiatives.',
+          features: ['Advanced Science & Math labs', 'Robotics & STEM projects', 'Co-curricular sports coaching', 'Career guidance & Olympiad prep']
+        }
+      ];
+
+      for (let i = 0; i < defaultFees.length; i++) {
+        const f = defaultFees[i];
+        await sql`
+          INSERT INTO dwps_fee_structures (
+            id, grade_name, category, age_group, monthly_tuition, annual_charges,
+            activity_smart_class, admission_fee, security_deposit, description, features, display_order
+          ) VALUES (
+            ${f.id}, ${f.gradeName}, ${f.category}, ${f.ageGroup}, ${f.monthlyTuition}, ${f.annualCharges},
+            ${f.activitySmartClass}, ${f.admissionFee}, ${f.securityDeposit}, ${f.description},
+            ${JSON.stringify(f.features)}::jsonb, ${i}
+          )
+          ON CONFLICT (id) DO NOTHING;
+        `;
+      }
+      log('[NeonDB] ✓ Seeded 6 grade fee structures into dwps_fee_structures.');
+    }
 
     // Seed sample announcements if table is empty so Neon console immediately shows data
     const annCount = await sql`SELECT COUNT(*)::int as count FROM dwps_announcements`;

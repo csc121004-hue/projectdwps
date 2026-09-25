@@ -4,22 +4,30 @@ import { GRADE_FEE_STRUCTURES, GradeFeeStructure, SCHOOL_INFO } from '../data/sc
 interface FeeCalculatorProps {
   onApplyForGrade?: (gradeName: string) => void;
   onBookTourClick?: () => void;
+  feeStructures?: GradeFeeStructure[];
 }
 
 export const FeeCalculator: React.FC<FeeCalculatorProps> = ({
   onApplyForGrade,
   onBookTourClick,
+  feeStructures,
 }) => {
-  const [selectedGradeId, setSelectedGradeId] = useState<string>('grade-1-2');
+  const activeStructures =
+    feeStructures && feeStructures.length > 0 ? feeStructures : GRADE_FEE_STRUCTURES;
+
+  const [selectedGradeId, setSelectedGradeId] = useState<string>(
+    () => activeStructures[3]?.id || activeStructures[0]?.id || 'grade-1-2'
+  );
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'quarterly' | 'annual'>('quarterly');
   const [transportZone, setTransportZone] = useState<'none' | 'zone1' | 'zone2' | 'zone3'>('zone1');
   const [hasSibling, setHasSibling] = useState<boolean>(false);
   const [includeExtendedCare, setIncludeExtendedCare] = useState<boolean>(false);
   const [showBreakdownModal, setShowBreakdownModal] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<'calculator' | 'comparisonTable'>('calculator');
+  const [activeCategoryFilter, setActiveCategoryFilter] = useState<'all' | 'Early Years' | 'Primary Wing' | 'Middle Wing'>('all');
 
   const selectedStructure: GradeFeeStructure =
-    GRADE_FEE_STRUCTURES.find((g) => g.id === selectedGradeId) || GRADE_FEE_STRUCTURES[3];
+    activeStructures.find((g) => g.id === selectedGradeId) || activeStructures[0] || GRADE_FEE_STRUCTURES[0];
 
   // Transport rates per month
   const getMonthlyTransportFee = () => {
@@ -144,7 +152,7 @@ export const FeeCalculator: React.FC<FeeCalculatorProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-[#dce3ec]">
-              {GRADE_FEE_STRUCTURES.map((g) => (
+              {activeStructures.map((g) => (
                 <tr
                   key={g.id}
                   className={`hover:bg-slate-50 transition-colors ${
@@ -194,39 +202,82 @@ export const FeeCalculator: React.FC<FeeCalculatorProps> = ({
         <div className="p-6 sm:p-8 lg:p-10 space-y-8">
           {/* Step 1: Grade Level Selector Tabs */}
           <div>
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
               <label className="text-xs font-bold text-[#021936] uppercase tracking-wider flex items-center gap-1.5">
                 <span className="w-5 h-5 rounded-full bg-[#021936] text-[#FDE68A] text-[11px] font-serif flex items-center justify-center">
                   1
                 </span>
                 <span>Select Child's Grade Level</span>
               </label>
-              <span className="text-xs font-semibold text-[#904d00]">
-                {selectedStructure.category} • {selectedStructure.ageGroup}
+
+              {/* Wing Filter Buttons */}
+              <div className="flex flex-wrap items-center gap-1 bg-[#F2F8FD] p-1 rounded-lg border border-[#dce3ec] text-[11px]">
+                {[
+                  { id: 'all', label: 'All Classes (7)' },
+                  { id: 'Early Years', label: 'Pre-Primary (4 Classes)' },
+                  { id: 'Primary Wing', label: 'Primary Wing (Grades 1-5)' },
+                  { id: 'Middle Wing', label: 'Middle Wing (Class 6-8)' },
+                ].map((w) => (
+                  <button
+                    key={w.id}
+                    type="button"
+                    onClick={() => setActiveCategoryFilter(w.id as any)}
+                    className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                      activeCategoryFilter === w.id
+                        ? 'bg-[#021936] text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-[#021936] hover:bg-slate-100'
+                    }`}
+                  >
+                    {w.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Selected Grade Headline */}
+            <div className="mb-3 px-3 py-1.5 rounded-lg bg-amber-50/80 border border-amber-200/80 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[#904d00] text-sm">school</span>
+                <span className="text-slate-700">Currently Calculating: <strong className="text-[#021936]">{selectedStructure.gradeName}</strong></span>
+              </div>
+              <span className="font-semibold text-[#904d00]">
+                {selectedStructure.category} • Age {selectedStructure.ageGroup}
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-              {GRADE_FEE_STRUCTURES.map((grade) => {
-                const isSelected = selectedGradeId === grade.id;
-                return (
-                  <button
-                    key={grade.id}
-                    onClick={() => setSelectedGradeId(grade.id)}
-                    className={`p-3 rounded-xl border text-left transition-all duration-150 cursor-pointer ${
-                      isSelected
-                        ? 'border-[#904d00] bg-amber-50/70 text-[#021936] shadow-xs ring-2 ring-[#904d00]/30'
-                        : 'border-[#dce3ec] bg-[#F2F8FD] hover:bg-slate-100 text-[#44474e]'
-                    }`}
-                  >
-                    <div className="text-xs font-bold truncate">{grade.gradeName.split(' ')[0]} {grade.gradeName.split(' ')[1] || ''}</div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">{grade.ageGroup}</div>
-                    <div className="text-xs font-mono font-bold text-[#904d00] mt-1.5">
-                      ₹{grade.monthlyTuition}/mo
-                    </div>
-                  </button>
-                );
-              })}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2.5">
+              {activeStructures
+                .filter((g) => activeCategoryFilter === 'all' || g.category === activeCategoryFilter)
+                .map((grade) => {
+                  const isSelected = selectedGradeId === grade.id;
+                  return (
+                    <button
+                      key={grade.id}
+                      onClick={() => setSelectedGradeId(grade.id)}
+                      className={`p-3 rounded-xl border text-left transition-all duration-150 cursor-pointer ${
+                        isSelected
+                          ? 'border-[#904d00] bg-amber-50/70 text-[#021936] shadow-xs ring-2 ring-[#904d00]/30'
+                          : 'border-[#dce3ec] bg-[#F2F8FD] hover:bg-slate-100 text-[#44474e]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                          {grade.category === 'Early Years' ? 'Pre-Primary' : grade.category.replace(' Wing', '')}
+                        </span>
+                      </div>
+                      <div className="text-xs font-bold truncate mt-0.5" title={grade.gradeName}>
+                        {grade.gradeName}
+                      </div>
+                      <div className="text-[10px] font-medium text-slate-600 mt-0.5 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#904d00]/60"></span>
+                        <span>{grade.ageGroup}</span>
+                      </div>
+                      <div className="text-xs font-mono font-bold text-[#904d00] mt-1.5">
+                        ₹{grade.monthlyTuition.toLocaleString('en-IN')}/mo
+                      </div>
+                    </button>
+                  );
+                })}
             </div>
           </div>
 

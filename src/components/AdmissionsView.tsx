@@ -1,5 +1,10 @@
 import React, { useState } from 'react';
-import { SCHOOL_INFO, InquiryRecord } from '../data/schoolData';
+import {
+  SCHOOL_INFO,
+  InquiryRecord,
+  GradeFeeStructure,
+  GRADE_FEE_STRUCTURES
+} from '../data/schoolData';
 import { AdmissionsSection } from './AdmissionsSection';
 import { AdmissionsFAQ } from './AdmissionsFAQ';
 
@@ -7,52 +12,58 @@ interface AdmissionsViewProps {
   onNewInquirySubmitted: (inquiry: InquiryRecord) => void;
   onBookTourClick: () => void;
   onApplyClick?: () => void;
+  feeStructures?: GradeFeeStructure[];
 }
 
 export const AdmissionsView: React.FC<AdmissionsViewProps> = ({
   onNewInquirySubmitted,
   onBookTourClick,
-  onApplyClick
+  onApplyClick,
+  feeStructures,
 }) => {
   // Age Eligibility Calculator State
   const [childAge, setChildAge] = useState<number>(4);
-  const [eligibilityResult, setEligibilityResult] = useState<string>('Nursery or KG / Prep');
+  const [eligibilityResult, setEligibilityResult] = useState<string>('L.KG (Lower KG, Age 4 – 5 Years)');
 
   const checkEligibility = (age: number) => {
     setChildAge(age);
     if (age < 2.5) {
       setEligibilityResult('Too young for 2026-27 session (Minimum age: 2.5 years for Playgroup)');
-    } else if (age < 3.5) {
-      setEligibilityResult('Eligible for Playgroup (Foundational Stage)');
-    } else if (age < 4.5) {
-      setEligibilityResult('Eligible for Nursery');
-    } else if (age < 5.5) {
-      setEligibilityResult('Eligible for Kindergarten (KG / Prep)');
-    } else if (age < 6.5) {
-      setEligibilityResult('Eligible for Grade 1 (Formal Primary Stage)');
+    } else if (age < 3) {
+      setEligibilityResult('Eligible for Playgroup (Pre-Primary, Age 2.5 – 3 Years)');
+    } else if (age < 4) {
+      setEligibilityResult('Eligible for Nursery (Pre-Primary, Age 3 – 4 Years)');
+    } else if (age < 5) {
+      setEligibilityResult('Eligible for L.KG (Lower Kindergarten, Age 4 – 5 Years)');
+    } else if (age < 6) {
+      setEligibilityResult('Eligible for U.KG (Upper Kindergarten, Age 5 – 6 Years)');
+    } else if (age <= 7.5) {
+      setEligibilityResult('Eligible for Grade 1 (Formal Primary Wing, Age 6+ Years)');
+    } else if (age <= 10.5) {
+      const g = Math.min(5, Math.max(2, Math.floor(age - 5)));
+      setEligibilityResult(`Eligible for Primary Wing: Grade ${g} (Age 7.5 – 10.5 Years)`);
     } else if (age <= 14) {
-      setEligibilityResult(`Eligible for Grade ${Math.min(8, Math.floor(age - 5))} (Subject to previous school TC & assessment)`);
+      const g = Math.min(8, Math.max(6, Math.floor(age - 5)));
+      setEligibilityResult(`Eligible for Middle Wing: Class 6 to 8 (Grade ${g}, Age 11 – 14 Years - Subject to previous school TC)`);
     } else {
       setEligibilityResult('Please contact Admissions Office for Secondary evaluation');
     }
   };
 
-  // Fee Calculator State
-  const [selectedFeeGrade, setSelectedFeeGrade] = useState<'Pre-Primary' | 'Primary' | 'Middle'>('Primary');
+  // Fee Calculator State (dynamically derived from live feeStructures)
+  const activeStructures: GradeFeeStructure[] =
+    feeStructures && feeStructures.length > 0 ? feeStructures : GRADE_FEE_STRUCTURES;
+  const [selectedFeeGradeId, setSelectedFeeGradeId] = useState<string>('playgroup');
   const [includeTransport, setIncludeTransport] = useState(true);
   const [isSibling, setIsSibling] = useState(false);
 
-  const getTuition = () => {
-    if (selectedFeeGrade === 'Pre-Primary') return 2800;
-    if (selectedFeeGrade === 'Primary') return 3400;
-    return 3900;
-  };
-
+  const selectedFeeGrade = activeStructures.find((s) => s.id === selectedFeeGradeId) || activeStructures[0];
+  const tuition = selectedFeeGrade.monthlyTuition;
+  const smartClass = selectedFeeGrade.activitySmartClass;
   const getTransport = () => (includeTransport ? 1200 : 0);
-  const tuition = getTuition();
   const transport = getTransport();
   const siblingDiscount = isSibling ? Math.round(tuition * 0.1) : 0;
-  const netMonthly = tuition + transport - siblingDiscount;
+  const netMonthly = tuition + smartClass + transport - siblingDiscount;
   const quarterlyEst = netMonthly * 3;
 
   const [checklist, setChecklist] = useState({
@@ -150,10 +161,11 @@ export const AdmissionsView: React.FC<AdmissionsViewProps> = ({
                 />
 
                 <div className="flex justify-between text-[11px] text-slate-400">
-                  <span>2 Yrs (Toddler)</span>
-                  <span>5 Yrs (KG)</span>
-                  <span>10 Yrs (Primary)</span>
-                  <span>12 Yrs</span>
+                  <span>2.5 Yrs (Playgroup)</span>
+                  <span>3 Yrs (Nursery)</span>
+                  <span>4 Yrs (L.KG)</span>
+                  <span>5 Yrs (U.KG)</span>
+                  <span>6+ Yrs (Grade 1)</span>
                 </div>
 
                 <div className="p-4 rounded-xl bg-[#F2F8FD] border border-[#dce3ec] mt-4">
@@ -198,23 +210,116 @@ export const AdmissionsView: React.FC<AdmissionsViewProps> = ({
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-[#021936] uppercase mb-1.5">
-                    Select School Wing
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(['Pre-Primary', 'Primary', 'Middle'] as const).map((wing) => (
-                      <button
-                        key={wing}
-                        onClick={() => setSelectedFeeGrade(wing)}
-                        className={`py-2 px-3 text-xs font-semibold rounded-lg border transition-colors cursor-pointer ${
-                          selectedFeeGrade === wing
-                            ? 'bg-[#021936] text-white border-[#021936]'
-                            : 'bg-white text-slate-700 border-[#dce3ec] hover:bg-slate-50'
-                        }`}
-                      >
-                        {wing}
-                      </button>
-                    ))}
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-bold text-[#021936] uppercase">
+                      Select Class / Grade
+                    </label>
+                    <span className="text-[11px] font-semibold text-[#904d00]">
+                      {selectedFeeGrade.gradeName} • Age {selectedFeeGrade.ageGroup}
+                    </span>
+                  </div>
+
+                  {/* Pre-Primary Section (4 Classes) */}
+                  <div className="mb-2.5">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                      Pre-Primary Section (4 Classes):
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                      {activeStructures.filter(s => s.category === 'Early Years').map((cls) => (
+                        <button
+                          key={cls.id}
+                          type="button"
+                          onClick={() => setSelectedFeeGradeId(cls.id)}
+                          className={`p-2 text-left rounded-xl border transition-all cursor-pointer ${
+                            selectedFeeGradeId === cls.id
+                              ? 'bg-[#021936] text-white border-[#021936] shadow-xs ring-2 ring-[#904d00]/30'
+                              : 'bg-white text-slate-700 border-[#dce3ec] hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="text-xs font-bold truncate">{cls.gradeName.split(' ')[0]}</div>
+                          <div className={`text-[10px] font-medium mt-0.5 ${selectedFeeGradeId === cls.id ? 'text-[#FDE68A]' : 'text-slate-500'}`}>
+                            {cls.ageGroup}
+                          </div>
+                          <div className={`text-[11px] font-mono font-bold mt-1 ${selectedFeeGradeId === cls.id ? 'text-[#fe932c]' : 'text-[#904d00]'}`}>
+                            ₹{cls.monthlyTuition}/mo
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Primary Wing (Grades 1 to 5) */}
+                  <div className="mb-2.5">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                      Primary Wing (Age 6 – 10.5 Years):
+                    </span>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {activeStructures.filter(s => s.category === 'Primary Wing').map((cls) => (
+                        <button
+                          key={cls.id}
+                          type="button"
+                          onClick={() => setSelectedFeeGradeId(cls.id)}
+                          className={`p-2 text-left rounded-xl border transition-all cursor-pointer ${
+                            selectedFeeGradeId === cls.id
+                              ? 'bg-[#021936] text-white border-[#021936] shadow-xs ring-2 ring-[#904d00]/30'
+                              : 'bg-white text-slate-700 border-[#dce3ec] hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="text-xs font-bold truncate">{cls.gradeName}</div>
+                          <div className={`text-[10px] font-medium mt-0.5 ${selectedFeeGradeId === cls.id ? 'text-[#FDE68A]' : 'text-slate-500'}`}>
+                            {cls.ageGroup}
+                          </div>
+                          <div className={`text-[11px] font-mono font-bold mt-1 ${selectedFeeGradeId === cls.id ? 'text-[#fe932c]' : 'text-[#904d00]'}`}>
+                            ₹{cls.monthlyTuition}/mo
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Middle Wing (Class 6 to 8 • Age 11 to 14) */}
+                  <div>
+                    <span className="text-[10px] font-bold text-[#904d00] uppercase tracking-wider block mb-1 flex items-center justify-between">
+                      <span className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#904d00]"></span>
+                        Middle Wing (Class 6 to 8)
+                      </span>
+                      <span className="text-[9px] bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-bold">
+                        Age 11 – 14 Years
+                      </span>
+                    </span>
+                    <div className="grid grid-cols-1 gap-1.5">
+                      {activeStructures.filter(s => s.category === 'Middle Wing').map((cls) => (
+                        <button
+                          key={cls.id}
+                          type="button"
+                          onClick={() => setSelectedFeeGradeId(cls.id)}
+                          className={`p-2.5 text-left rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                            selectedFeeGradeId === cls.id
+                              ? 'bg-[#021936] text-white border-[#021936] shadow-xs ring-2 ring-[#904d00]/30'
+                              : 'bg-white text-slate-700 border-[#dce3ec] hover:bg-slate-50'
+                          }`}
+                        >
+                          <div>
+                            <div className="text-xs font-bold flex items-center gap-2">
+                              <span>Class 6 to 8 (Middle Wing)</span>
+                              <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${selectedFeeGradeId === cls.id ? 'bg-[#904d00] text-white' : 'bg-slate-100 text-slate-700'}`}>
+                                Grades 6, 7 &amp; 8
+                              </span>
+                            </div>
+                            <div className={`text-[10px] font-medium mt-0.5 ${selectedFeeGradeId === cls.id ? 'text-[#FDE68A]' : 'text-slate-500'}`}>
+                              Age 11 – 14 Years • CBSE Middle Curriculum, STEM Science Labs &amp; Sports
+                            </div>
+                          </div>
+                          <div className="text-right pl-3 shrink-0">
+                            <div className={`text-xs sm:text-sm font-mono font-bold ${selectedFeeGradeId === cls.id ? 'text-[#fe932c]' : 'text-[#904d00]'}`}>
+                              ₹{cls.monthlyTuition.toLocaleString('en-IN')}/mo
+                            </div>
+                            <div className="text-[9px] text-slate-400">Monthly Tuition</div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
@@ -243,30 +348,38 @@ export const AdmissionsView: React.FC<AdmissionsViewProps> = ({
                 {/* Calculation Summary Card */}
                 <div className="p-4 rounded-xl bg-[#F2F8FD] border border-[#dce3ec] space-y-2 text-xs">
                   <div className="flex justify-between text-slate-600">
+                    <span>Selected Class:</span>
+                    <span className="font-bold text-[#021936]">{selectedFeeGrade.gradeName} ({selectedFeeGrade.ageGroup})</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
                     <span>Monthly Tuition Fee:</span>
-                    <span className="font-semibold text-[#021936]">₹{tuition.toLocaleString()}</span>
+                    <span className="font-semibold text-[#021936]">₹{tuition.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>Smart Classroom &amp; Activity:</span>
+                    <span className="font-semibold text-[#021936]">₹{smartClass.toLocaleString('en-IN')}</span>
                   </div>
                   {includeTransport && (
                     <div className="flex justify-between text-slate-600">
                       <span>Transport &amp; GPS Bus Service:</span>
-                      <span className="font-semibold text-[#021936]">₹{transport.toLocaleString()}</span>
+                      <span className="font-semibold text-[#021936]">₹{transport.toLocaleString('en-IN')}</span>
                     </div>
                   )}
                   {isSibling && (
                     <div className="flex justify-between text-emerald-700 font-medium">
                       <span>Sibling Discount Applied:</span>
-                      <span>-₹{siblingDiscount.toLocaleString()}</span>
+                      <span>-₹{siblingDiscount.toLocaleString('en-IN')}</span>
                     </div>
                   )}
                   <div className="pt-2 border-t border-[#dce3ec] flex justify-between items-baseline">
                     <span className="text-xs font-bold text-[#021936] uppercase">Est. Monthly:</span>
                     <span className="text-lg font-bold text-[#904d00] font-mono">
-                      ₹{netMonthly.toLocaleString()}/mo
+                      ₹{netMonthly.toLocaleString('en-IN')}/mo
                     </span>
                   </div>
                   <div className="flex justify-between items-center text-[11px] text-slate-500">
                     <span>Quarterly Payment (3 Months):</span>
-                    <span className="font-semibold text-slate-700">₹{quarterlyEst.toLocaleString()}</span>
+                    <span className="font-semibold text-slate-700">₹{quarterlyEst.toLocaleString('en-IN')}</span>
                   </div>
                 </div>
               </div>
@@ -383,6 +496,7 @@ export const AdmissionsView: React.FC<AdmissionsViewProps> = ({
 
         {/* Reusable Core Admissions Inquiry Form with Interactive Fee Calculator */}
         <AdmissionsSection
+          feeStructures={feeStructures}
           onNewInquirySubmitted={onNewInquirySubmitted}
           onBookTourClick={onBookTourClick}
         />

@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
-import { SCHOOL_INFO, InquiryRecord } from '../data/schoolData';
+import { SCHOOL_INFO, InquiryRecord, GradeFeeStructure } from '../data/schoolData';
 import { FeeCalculator } from './FeeCalculator';
 
 interface AdmissionsSectionProps {
   onNewInquirySubmitted: (inquiry: InquiryRecord) => void;
   onBookTourClick?: () => void;
+  feeStructures?: GradeFeeStructure[];
 }
 
 export const AdmissionsSection: React.FC<AdmissionsSectionProps> = ({
   onNewInquirySubmitted,
   onBookTourClick,
+  feeStructures,
 }) => {
   const [activeTab, setActiveTab] = useState<'calculator' | 'procedure'>('calculator');
   const [formData, setFormData] = useState({
@@ -26,14 +28,17 @@ export const AdmissionsSection: React.FC<AdmissionsSectionProps> = ({
   const handleApplyFromFeeCalculator = (gradeName: string) => {
     // Map grade name to form grade options
     let targetGrade = 'Grade 1';
-    if (gradeName.toLowerCase().includes('playgroup')) targetGrade = 'Playgroup';
-    else if (gradeName.toLowerCase().includes('nursery')) targetGrade = 'Nursery';
-    else if (gradeName.toLowerCase().includes('kg') || gradeName.toLowerCase().includes('prep')) targetGrade = 'KG / Prep';
-    else if (gradeName.toLowerCase().includes('grade 1')) targetGrade = 'Grade 1';
-    else if (gradeName.toLowerCase().includes('grade 2')) targetGrade = 'Grade 2';
-    else if (gradeName.toLowerCase().includes('grade 3')) targetGrade = 'Grade 3';
-    else if (gradeName.toLowerCase().includes('grade 4')) targetGrade = 'Grade 4';
-    else if (gradeName.toLowerCase().includes('middle') || gradeName.toLowerCase().includes('6') || gradeName.toLowerCase().includes('5')) targetGrade = 'Grade 5+';
+    const lower = gradeName.toLowerCase();
+    if (lower.includes('playgroup')) targetGrade = 'Playgroup';
+    else if (lower.includes('nursery')) targetGrade = 'Nursery';
+    else if (lower.includes('u.kg') || lower.includes('ukg') || lower.includes('upper kg')) targetGrade = 'U.KG';
+    else if (lower.includes('l.kg') || lower.includes('lkg') || lower.includes('lower kg') || lower.includes('kg') || lower.includes('prep')) targetGrade = 'L.KG';
+    else if (lower.includes('middle') || lower.includes('6 to 8') || lower.includes('6-8') || lower.includes('class 6') || lower.includes('class 7') || lower.includes('class 8')) targetGrade = 'Class 6 to 8 (Middle Wing)';
+    else if (lower.includes('grade 5') || lower.includes('5')) targetGrade = 'Grade 5';
+    else if (lower.includes('grade 4')) targetGrade = 'Grade 4';
+    else if (lower.includes('grade 3')) targetGrade = 'Grade 3';
+    else if (lower.includes('grade 2')) targetGrade = 'Grade 2';
+    else if (lower.includes('grade 1')) targetGrade = 'Grade 1';
 
     setFormData((prev) => ({
       ...prev,
@@ -131,6 +136,7 @@ export const AdmissionsSection: React.FC<AdmissionsSectionProps> = ({
         {activeTab === 'calculator' && (
           <div className="animate-fadeIn space-y-8">
             <FeeCalculator
+              feeStructures={feeStructures}
               onApplyForGrade={handleApplyFromFeeCalculator}
               onBookTourClick={onBookTourClick}
             />
@@ -351,14 +357,16 @@ export const AdmissionsSection: React.FC<AdmissionsSectionProps> = ({
                           className="w-full h-[50px] px-4 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-[#151c23] text-sm focus:border-[#904d00] focus:ring-2 focus:ring-[#904d00]/20 transition-all outline-none"
                         >
                           <option value="" disabled>Select Grade</option>
-                          <option value="Playgroup">Playgroup (Age 2-3)</option>
-                          <option value="Nursery">Nursery (Age 3-4)</option>
-                          <option value="KG / Prep">KG / Prep (Age 4-5)</option>
-                          <option value="Grade 1">Grade 1</option>
+                          <option value="Playgroup">Playgroup (Age 2.5 – 3)</option>
+                          <option value="Nursery">Nursery (Age 3 – 4)</option>
+                          <option value="L.KG">L.KG (Lower KG, Age 4 – 5)</option>
+                          <option value="U.KG">U.KG (Upper KG, Age 5 – 6)</option>
+                          <option value="Grade 1">Grade 1 (Age 6+)</option>
                           <option value="Grade 2">Grade 2</option>
                           <option value="Grade 3">Grade 3</option>
                           <option value="Grade 4">Grade 4</option>
-                          <option value="Grade 5+">Grade 5 &amp; Middle School</option>
+                          <option value="Grade 5">Grade 5</option>
+                          <option value="Class 6 to 8 (Middle Wing)">Class 6 to 8 - Middle Wing (Age 11 – 14)</option>
                         </select>
                       </div>
                     </div>

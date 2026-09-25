@@ -1,5 +1,6 @@
 import express from 'express';
 import { getSql, checkDbConnection, initializeDatabase, isDatabaseConfigured } from './db.js';
+import { GRADE_FEE_STRUCTURES } from '../data/schoolData.js';
 
 export const app = express();
 
@@ -363,5 +364,181 @@ app.delete('/api/announcements/:id', async (req, res) => {
   } catch (err: any) {
     console.error('Error deleting announcement in Neon:', err);
     return res.status(500).json({ error: 'Failed to delete announcement', details: err?.message });
+  }
+});
+
+// 6. Institutional Fee Structures API (Live Fee Updates)
+app.get('/api/fees', async (_req, res) => {
+  await ensureDbInit();
+  const sql = getSql();
+  if (!sql) {
+    return res.json({ source: 'local', data: GRADE_FEE_STRUCTURES });
+  }
+
+  try {
+    console.log('[NeonDB] 🔍 [GET /api/fees] Fetching live fee structures from dwps_fee_structures...');
+    const rows = await sql`
+      SELECT 
+        id,
+        grade_name as "gradeName",
+        category,
+        age_group as "ageGroup",
+        monthly_tuition as "monthlyTuition",
+        annual_charges as "annualCharges",
+        activity_smart_class as "activitySmartClass",
+        admission_fee as "admissionFee",
+        security_deposit as "securityDeposit",
+        description,
+        features,
+        display_order as "displayOrder"
+      FROM dwps_fee_structures
+      ORDER BY display_order ASC, monthly_tuition ASC
+    `;
+
+    if (rows && rows.length > 0) {
+      // If table is missing ukg or still has old KG prep, auto-align with latest structure
+      const hasUkg = rows.some((r: any) => r.id === 'ukg' || (r.gradeName && r.gradeName.includes('U.KG')));
+      if (!hasUkg) {
+        console.log('[NeonDB] 🌿 Auto-synchronizing U.KG and Pre-Primary classes to Neon database...');
+        const ukg = GRADE_FEE_STRUCTURES.find((g) => g.id === 'ukg');
+        if (ukg) {
+          await sql`
+            INSERT INTO dwps_fee_structures (
+              id, grade_name, category, age_group, monthly_tuition, annual_charges,
+              activity_smart_class, admission_fee, security_deposit, description, features, display_order
+            ) VALUES (
+              ${ukg.id}, ${ukg.gradeName}, ${ukg.category}, ${ukg.ageGroup}, ${ukg.monthlyTuition}, ${ukg.annualCharges},
+              ${ukg.activitySmartClass}, ${ukg.admissionFee}, ${ukg.securityDeposit}, ${ukg.description},
+              ${JSON.stringify(ukg.features)}::jsonb, 3
+            )
+            ON CONFLICT (id) DO UPDATE SET
+              grade_name = EXCLUDED.grade_name,
+              age_group = EXCLUDED.age_group;
+          `;
+          await sql`UPDATE dwps_fee_structures SET age_group = '2.5 – 3 Years' WHERE id = 'playgroup'`;
+          await sql`UPDATE dwps_fee_structures SET age_group = '3 – 4 Years' WHERE id = 'nursery'`;
+          await sql`UPDATE dwps_fee_structures SET id = 'lkg', grade_name = 'L.KG (Lower KG)', age_group = '4 – 5 Years' WHERE id = 'kg-prep' OR id = 'lkg'`;
+          await sql`UPDATE dwps_fee_structures SET age_group = '6 – 7.5 Years' WHERE id = 'grade-1-2'`;
+          await sql`UPDATE dwps_fee_structures SET grade_name = 'Class 6 to 8 (Middle Wing)', age_group = '11 – 14 Years', category = 'Middle Wing' WHERE id = 'grade-6-8'`;
+
+          const refreshed = await sql`
+            SELECT 
+              id,
+              grade_name as "gradeName",
+              category,
+              age_group as "ageGroup",
+              monthly_tuition as "monthlyTuition",
+              annual_charges as "annualCharges",
+              activity_smart_class as "activitySmartClass",
+              admission_fee as "admissionFee",
+              security_deposit as "securityDeposit",
+              description,
+              features,
+              display_order as "displayOrder"
+            FROM dwps_fee_structures
+            ORDER BY display_order ASC, monthly_tuition ASC
+          `;
+          return res.json({ source: 'neon', data: refreshed });
+        }
+      }
+
+      console.log(`[NeonDB] ✅ [GET /api/fees] Retrieved ${rows.length} fee structures from Neon.`);
+      return res.json({ source: 'neon', data: rows });
+    }
+    return res.json({ source: 'default', data: GRADE_FEE_STRUCTURES });
+  } catch (err: any) {
+    console.error('[NeonDB] ❌ [GET /api/fees] Error fetching fee structures:', err);
+    return res.json({ source: 'fallback', data: GRADE_FEE_STRUCTURES, error: err?.message });
+  }
+});
+
+app.put('/api/fees', async (req, res) => {
+  await ensureDbInit();
+  const sql = getSql();
+  const { fees } = req.body;
+
+  if (!Array.isArray(fees) || fees.length === 0) {
+    return res.status(400).json({ error: 'Expected an array of fee structures in body.fees' });
+  }
+
+  if (!sql) {
+    console.warn('[NeonDB] ⚠️ [PUT /api/fees] DATABASE_URL is not set. Updated in local session.');
+    return res.json({ source: 'local', saved: true, count: fees.length });
+  }
+
+  try {
+    console.log(`[NeonDB] 💾 [PUT /api/fees] Upserting ${fees.length} grade fee structures into dwps_fee_structures...`);
+    for (let i = 0; i < fees.length; i++) {
+      const f = fees[i];
+      await sql`
+        INSERT INTO dwps_fee_structures (
+          id, grade_name, category, age_group, monthly_tuition, annual_charges,
+          activity_smart_class, admission_fee, security_deposit, description, features, display_order, updated_at
+        ) VALUES (
+          ${f.id},
+          ${f.gradeName},
+          ${f.category},
+          ${f.ageGroup || ''},
+          ${Number(f.monthlyTuition) || 0},
+          ${Number(f.annualCharges) || 0},
+          ${Number(f.activitySmartClass) || 0},
+          ${Number(f.admissionFee) || 0},
+          ${Number(f.securityDeposit) || 0},
+          ${f.description || ''},
+          ${JSON.stringify(f.features || [])}::jsonb,
+          ${i},
+          CURRENT_TIMESTAMP
+        )
+        ON CONFLICT (id) DO UPDATE SET
+          grade_name = EXCLUDED.grade_name,
+          category = EXCLUDED.category,
+          age_group = EXCLUDED.age_group,
+          monthly_tuition = EXCLUDED.monthly_tuition,
+          annual_charges = EXCLUDED.annual_charges,
+          activity_smart_class = EXCLUDED.activity_smart_class,
+          admission_fee = EXCLUDED.admission_fee,
+          security_deposit = EXCLUDED.security_deposit,
+          description = EXCLUDED.description,
+          features = EXCLUDED.features,
+          display_order = EXCLUDED.display_order,
+          updated_at = CURRENT_TIMESTAMP;
+      `;
+    }
+    console.log(`[NeonDB] 🎉 [PUT /api/fees] Successfully synced ${fees.length} fee structures to Neon!`);
+    return res.json({ source: 'neon', saved: true, count: fees.length });
+  } catch (err: any) {
+    console.error('[NeonDB] ❌ [PUT /api/fees] Error updating fee structures:', err);
+    return res.status(500).json({ error: 'Failed to update fee structures in Neon', details: err?.message });
+  }
+});
+
+app.post('/api/fees/reset', async (_req, res) => {
+  await ensureDbInit();
+  const sql = getSql();
+  if (!sql) {
+    return res.json({ source: 'local', reset: true, data: GRADE_FEE_STRUCTURES });
+  }
+
+  try {
+    console.log('[NeonDB] ⚡ [POST /api/fees/reset] Resetting fee structures to default CBSE values...');
+    await sql`DELETE FROM dwps_fee_structures`;
+    for (let i = 0; i < GRADE_FEE_STRUCTURES.length; i++) {
+      const f = GRADE_FEE_STRUCTURES[i];
+      await sql`
+        INSERT INTO dwps_fee_structures (
+          id, grade_name, category, age_group, monthly_tuition, annual_charges,
+          activity_smart_class, admission_fee, security_deposit, description, features, display_order
+        ) VALUES (
+          ${f.id}, ${f.gradeName}, ${f.category}, ${f.ageGroup}, ${f.monthlyTuition}, ${f.annualCharges},
+          ${f.activitySmartClass}, ${f.admissionFee}, ${f.securityDeposit}, ${f.description},
+          ${JSON.stringify(f.features)}::jsonb, ${i}
+        );
+      `;
+    }
+    console.log('[NeonDB] ✅ [POST /api/fees/reset] Fees reset successfully.');
+    return res.json({ source: 'neon', reset: true, data: GRADE_FEE_STRUCTURES });
+  } catch (err: any) {
+    console.error('[NeonDB] ❌ [POST /api/fees/reset] Error resetting fees:', err);
+    return res.status(500).json({ error: 'Failed to reset fees', details: err?.message });
   }
 });

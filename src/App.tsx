@@ -30,6 +30,8 @@ import {
   InquiryRecord,
   NewsletterItem,
   SchoolAnnouncement,
+  GradeFeeStructure,
+  GRADE_FEE_STRUCTURES,
   INITIAL_INQUIRIES,
   INITIAL_NEWSLETTERS,
   SCHOOL_ANNOUNCEMENTS,
@@ -79,6 +81,23 @@ export default function App() {
     return SCHOOL_ANNOUNCEMENTS;
   });
 
+  // Persistent Live Grade Fee Structures State (Admin can update anytime!)
+  const [feeStructures, setFeeStructures] = useState<GradeFeeStructure[]>(() => {
+    try {
+      const saved = localStorage.getItem('dwps_live_fee_structures');
+      if (saved) {
+        const parsed: GradeFeeStructure[] = JSON.parse(saved);
+        const hasUkg = parsed.some((g) => g.id === 'ukg' || (g.gradeName && g.gradeName.includes('U.KG')));
+        if (hasUkg && parsed.length >= 7) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to parse fee structures from localStorage', e);
+    }
+    return GRADE_FEE_STRUCTURES;
+  });
+
   // Admin User Session State
   const [adminUser, setAdminUser] = useState<{ name: string; role: string; email: string } | null>(() => {
     try {
@@ -95,9 +114,10 @@ export default function App() {
     let isMounted = true;
     async function syncWithDatabase() {
       try {
-        const [dbInquiries, dbAnnouncements] = await Promise.all([
+        const [dbInquiries, dbAnnouncements, dbFees] = await Promise.all([
           api.getInquiries(),
-          api.getAnnouncements()
+          api.getAnnouncements(),
+          api.getFeeStructures()
         ]);
         if (!isMounted) return;
         if (dbInquiries && dbInquiries.length > 0) {
@@ -106,6 +126,10 @@ export default function App() {
         if (dbAnnouncements && dbAnnouncements.length > 0) {
           setAnnouncements(dbAnnouncements);
         }
+        if (dbFees && dbFees.length > 0) {
+          setFeeStructures(dbFees);
+          localStorage.setItem('dwps_live_fee_structures', JSON.stringify(dbFees));
+        }
       } catch (err) {
         console.warn('Database initial sync note:', err);
       }
@@ -113,6 +137,28 @@ export default function App() {
     syncWithDatabase();
     return () => { isMounted = false; };
   }, []);
+
+  const handleSaveFeeStructures = async (updatedFees: GradeFeeStructure[]): Promise<boolean> => {
+    setFeeStructures(updatedFees);
+    try {
+      localStorage.setItem('dwps_live_fee_structures', JSON.stringify(updatedFees));
+    } catch (e) {
+      console.warn('Failed to save fees to localStorage', e);
+    }
+    const ok = await api.updateFeeStructures(updatedFees);
+    return ok;
+  };
+
+  const handleResetFeeStructures = async (): Promise<boolean> => {
+    setFeeStructures(GRADE_FEE_STRUCTURES);
+    try {
+      localStorage.removeItem('dwps_live_fee_structures');
+    } catch (e) {
+      console.warn(e);
+    }
+    await api.resetFeeStructures();
+    return true;
+  };
 
   const handleNavigate = (screen: ScreenType, sectionId?: string) => {
     if (screen === 'admin-dashboard' && !adminUser) {
@@ -193,9 +239,12 @@ export default function App() {
           inquiries={inquiries}
           newsletters={newsletters}
           announcements={announcements}
+          feeStructures={feeStructures}
           onUpdateInquiries={handleUpdateInquiries}
           onUpdateNewsletters={handleUpdateNewsletters}
           onUpdateAnnouncements={handleUpdateAnnouncements}
+          onSaveFees={handleSaveFeeStructures}
+          onResetFees={handleResetFeeStructures}
           onLogout={handleAdminLogout}
           onBackToWebsite={() => setCurrentScreen('home')}
         />
@@ -294,6 +343,7 @@ export default function App() {
 
             {/* 4-Step Admissions Guide, Interactive Fee Calculator & Inquiry Form */}
             <AdmissionsSection
+              feeStructures={feeStructures}
               onNewInquirySubmitted={handleNewInquirySubmitted}
               onBookTourClick={() => setIsTourModalOpen(true)}
             />
@@ -368,6 +418,7 @@ export default function App() {
 
         {currentScreen === 'admissions' && (
           <AdmissionsView
+            feeStructures={feeStructures}
             onNewInquirySubmitted={handleNewInquirySubmitted}
             onBookTourClick={() => setIsTourModalOpen(true)}
             onApplyClick={() => handleNavigate('admissions', 'admissions-form')}

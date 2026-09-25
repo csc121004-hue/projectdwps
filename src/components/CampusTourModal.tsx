@@ -193,12 +193,13 @@ export const CampusTourModal: React.FC<CampusTourModalProps> = ({ isOpen, onClos
                     onChange={(e) => setFormData({ ...formData, grade: e.target.value })}
                     className="w-full h-11 px-3.5 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-sm focus:border-[#904d00] outline-none"
                   >
-                    <option value="Playgroup">Playgroup (Age 2-3)</option>
-                    <option value="Nursery">Nursery (Age 3-4)</option>
-                    <option value="KG / Prep">KG / Prep (Age 4-5)</option>
-                    <option value="Grade 1">Grade 1</option>
-                    <option value="Grade 2 to 5">Grade 2 to 5</option>
-                    <option value="Middle School">Middle School</option>
+                    <option value="Playgroup">Playgroup (Age 2.5–3)</option>
+                    <option value="Nursery">Nursery (Age 3–4)</option>
+                    <option value="L.KG">L.KG (Lower KG, Age 4–5)</option>
+                    <option value="U.KG">U.KG (Upper KG, Age 5–6)</option>
+                    <option value="Grade 1">Grade 1 (Age 6+)</option>
+                    <option value="Grade 2 to 5">Grade 2 to 5 (Primary Wing)</option>
+                    <option value="Class 6 to 8 (Middle Wing)">Class 6 to 8 - Middle Wing (Age 11–14)</option>
                   </select>
                 </div>
               </div>

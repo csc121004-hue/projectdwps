@@ -256,15 +256,15 @@ export const CURRICULUM_TIERS = [
   {
     id: 'pre-primary',
     name: 'Pre-Primary & Early Years',
-    badge: 'Playgroup • Nursery • KG',
-    ages: 'Age 2.5 – 5 Years',
+    badge: 'Playgroup • Nursery • L.KG • U.KG',
+    ages: 'Age 2.5 – 6 Years',
     icon: 'toys',
-    description: 'Activity-based learning centered around natural curiosity. We build foundational literacy, numeracy, motor skills, and social confidence through joyful cognitive play.',
+    description: 'Activity-based learning centered around natural curiosity across 4 foundational stages: Playgroup (2.5–3), Nursery (3–4), L.KG (4–5), and U.KG (5–6). We build literacy, numeracy, motor skills, and social confidence through joyful cognitive play.',
     points: [
-      'Montessori-inspired sensory activity modules',
-      'Phonics, storytelling & vocabulary expansion',
+      '4 Progressive Pre-Primary Stages: Playgroup, Nursery, L.KG & U.KG',
+      'Montessori sensory activities & phonics language fluency',
       'Expressive arts, music, rhythm and dance',
-      'Fine and gross motor skills play arena'
+      'Smooth transition kit for formal Grade 1 readiness'
     ],
     ratio: '1:15',
     timings: '8:30 AM – 12:30 PM'
@@ -274,7 +274,7 @@ export const CURRICULUM_TIERS = [
     name: 'Primary School Wing',
     badge: 'Grades 1 to 5',
     tag: 'Core Milestone',
-    ages: 'Age 6 – 10 Years',
+    ages: 'Age 6 – 10.5 Years',
     icon: 'menu_book',
     description: 'Structured inquiry that cultivates conceptual clarity in STEM, language fluency, environmental consciousness, and expressive artistic talents.',
     points: [
@@ -288,11 +288,11 @@ export const CURRICULUM_TIERS = [
   },
   {
     id: 'middle',
-    name: 'Middle & Grade School',
-    badge: 'Grade School',
+    name: 'Middle Wing (Class 6 to 8)',
+    badge: 'Class 6, 7 & 8',
     ages: 'Age 11 – 14 Years',
     icon: 'workspace_premium',
-    description: 'Nurturing analytical thinking, collaborative project investigations, ethical leadership, and disciplined study habits required for future academic excellence.',
+    description: 'Nurturing analytical thinking, collaborative STEM investigations, ethical leadership, and disciplined study habits for adolescents in Class 6 to 8.',
     points: [
       'Advanced problem-solving & science lab projects',
       'Debate, creative writing & public speaking',
@@ -399,7 +399,7 @@ export const GRADE_FEE_STRUCTURES: GradeFeeStructure[] = [
     id: 'playgroup',
     gradeName: 'Playgroup (Toddlers)',
     category: 'Early Years',
-    ageGroup: '2.5 – 3.5 Years',
+    ageGroup: '2.5 – 3 Years',
     monthlyTuition: 2600,
     annualCharges: 3500,
     activitySmartClass: 400,
@@ -412,7 +412,7 @@ export const GRADE_FEE_STRUCTURES: GradeFeeStructure[] = [
     id: 'nursery',
     gradeName: 'Nursery',
     category: 'Early Years',
-    ageGroup: '3.5 – 4.5 Years',
+    ageGroup: '3 – 4 Years',
     monthlyTuition: 2800,
     annualCharges: 3800,
     activitySmartClass: 450,
@@ -422,23 +422,36 @@ export const GRADE_FEE_STRUCTURES: GradeFeeStructure[] = [
     features: ['Phonics & Pre-reading Modules', 'Interactive smart audiovisuals', 'Indoor & outdoor recreation', 'Parent consultation portal']
   },
   {
-    id: 'kg-prep',
-    gradeName: 'KG / Kindergarten (Prep)',
+    id: 'lkg',
+    gradeName: 'L.KG (Lower KG)',
     category: 'Early Years',
-    ageGroup: '4.5 – 5.5 Years',
+    ageGroup: '4 – 5 Years',
     monthlyTuition: 3000,
     annualCharges: 4000,
     activitySmartClass: 500,
     admissionFee: 4500,
     securityDeposit: 1500,
     description: 'Foundational literacy in English & Hindi, practical math concepts, expressive speaking, and fine arts.',
-    features: ['Bilingual speech foundations', 'Early STEM science puzzles', 'Music, dance & physical fitness', 'Smooth Grade 1 transition kit']
+    features: ['Bilingual speech foundations', 'Early STEM science puzzles', 'Music, dance & physical fitness', 'Pre-writing & motor skills']
+  },
+  {
+    id: 'ukg',
+    gradeName: 'U.KG (Upper KG)',
+    category: 'Early Years',
+    ageGroup: '5 – 6 Years',
+    monthlyTuition: 3200,
+    annualCharges: 4200,
+    activitySmartClass: 500,
+    admissionFee: 4800,
+    securityDeposit: 1500,
+    description: 'Pre-primary graduation stage focusing on advanced phonics, sentence formation, mental math, and seamless transition to Grade 1.',
+    features: ['Smooth Grade 1 transition kit', 'Sentence formation & phonics mastery', 'Early science & environmental exploration', 'Confidence & stage speech presentation']
   },
   {
     id: 'grade-1-2',
     gradeName: 'Grade 1 & 2',
     category: 'Primary Wing',
-    ageGroup: '5.5 – 7.5 Years',
+    ageGroup: '6 – 7.5 Years',
     monthlyTuition: 3300,
     annualCharges: 4500,
     activitySmartClass: 550,
@@ -462,7 +475,7 @@ export const GRADE_FEE_STRUCTURES: GradeFeeStructure[] = [
   },
   {
     id: 'grade-6-8',
-    gradeName: 'Middle School (Grade 6 to 8)',
+    gradeName: 'Class 6 to 8 (Middle Wing)',
     category: 'Middle Wing',
     ageGroup: '11 – 14 Years',
     monthlyTuition: 4000,

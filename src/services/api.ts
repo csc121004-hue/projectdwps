@@ -1,4 +1,4 @@
-import { InquiryRecord, SchoolAnnouncement } from '../data/schoolData';
+import { InquiryRecord, SchoolAnnouncement, GradeFeeStructure } from '../data/schoolData';
 
 export interface TableSummary {
   name: string;
@@ -152,6 +152,43 @@ export const api = {
       return res.ok;
     } catch {
       return false;
+    }
+  },
+
+  async getFeeStructures(): Promise<GradeFeeStructure[] | null> {
+    try {
+      const res = await fetch('/api/fees');
+      if (!res.ok) return null;
+      const json = await res.json();
+      return json.data || null;
+    } catch {
+      return null;
+    }
+  },
+
+  async updateFeeStructures(fees: GradeFeeStructure[]): Promise<boolean> {
+    try {
+      const res = await fetch('/api/fees', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fees })
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
+  async resetFeeStructures(): Promise<GradeFeeStructure[] | null> {
+    try {
+      const res = await fetch('/api/fees/reset', {
+        method: 'POST'
+      });
+      if (!res.ok) return null;
+      const json = await res.json();
+      return json.data || null;
+    } catch {
+      return null;
     }
   }
 };

@@ -4,11 +4,13 @@ import {
   InquiryRecord,
   NewsletterItem,
   SchoolAnnouncement,
+  GradeFeeStructure,
   HOTLINK_IMAGES
 } from '../data/schoolData';
 import { SchoolLogo } from './SchoolLogo';
 import { AnnouncementsManager } from './AnnouncementsManager';
 import { NeonDbStatusModal } from './NeonDbStatusModal';
+import { FeeManager } from './FeeManager';
 import { api } from '../services/api';
 import {
   PeriodicBackupModal,
@@ -22,9 +24,12 @@ interface SchoolAdminDashboardProps {
   inquiries: InquiryRecord[];
   newsletters: NewsletterItem[];
   announcements: SchoolAnnouncement[];
+  feeStructures: GradeFeeStructure[];
   onUpdateInquiries: (inquiries: InquiryRecord[]) => void;
   onUpdateNewsletters: (newsletters: NewsletterItem[]) => void;
   onUpdateAnnouncements: (announcements: SchoolAnnouncement[]) => void;
+  onSaveFees: (updatedFees: GradeFeeStructure[]) => Promise<boolean>;
+  onResetFees: () => Promise<boolean>;
   onLogout: () => void;
   onBackToWebsite: () => void;
 }
@@ -34,13 +39,16 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
   inquiries,
   newsletters,
   announcements,
+  feeStructures,
   onUpdateInquiries,
   onUpdateNewsletters,
   onUpdateAnnouncements,
+  onSaveFees,
+  onResetFees,
   onLogout,
   onBackToWebsite,
 }) => {
-  const [activeTab, setActiveTab] = useState<'inquiries' | 'announcements' | 'newsletters'>('inquiries');
+  const [activeTab, setActiveTab] = useState<'inquiries' | 'fees' | 'announcements' | 'newsletters'>('inquiries');
 
   // Inquiries Filters
   const [inquirySearch, setInquirySearch] = useState('');
@@ -621,6 +629,21 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
           </button>
 
           <button
+            onClick={() => setActiveTab('fees')}
+            className={`py-3 px-4 text-xs font-bold transition-all border-b-2 cursor-pointer flex items-center gap-2 ${
+              activeTab === 'fees'
+                ? 'border-[#fe932c] text-[#fe932c]'
+                : 'border-transparent text-[#8396b9] hover:text-white'
+            }`}
+          >
+            <span className="material-symbols-outlined text-lg">payments</span>
+            <span>Fee Structure &amp; Tuition Manager</span>
+            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-mono font-bold">
+              {feeStructures.length} Grades
+            </span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('announcements')}
             className={`py-3 px-4 text-xs font-bold transition-all border-b-2 cursor-pointer flex items-center gap-2 ${
               activeTab === 'announcements'
@@ -1040,7 +1063,17 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
           </div>
         )}
 
-        {/* ===================== TAB 2: UPCOMING UPDATES & NOTICES ===================== */}
+        {/* ===================== TAB 2: FEE STRUCTURE & TUITION MANAGER ===================== */}
+        {activeTab === 'fees' && (
+          <FeeManager
+            feeStructures={feeStructures}
+            onSaveFees={onSaveFees}
+            onResetFees={onResetFees}
+            dbConnected={dbHealth?.ok}
+          />
+        )}
+
+        {/* ===================== TAB 3: UPCOMING UPDATES & NOTICES ===================== */}
         {activeTab === 'announcements' && (
           <AnnouncementsManager
             announcements={announcements}
