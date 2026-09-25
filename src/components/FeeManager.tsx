@@ -344,10 +344,10 @@ export const FeeManager: React.FC<FeeManagerProps> = ({
             Total Grade Slabs
           </div>
           <div className="text-2xl font-bold font-serif text-[#021936] mt-1">
-            {localFees.length} Levels
+            {localFees.length} Classes
           </div>
           <div className="text-[10px] text-emerald-600 font-semibold mt-1">
-            Playgroup to Grade 8 (4 Pre-Primary Levels)
+            Playgroup to Class 8 (10 Active Classes)
           </div>
         </div>
 

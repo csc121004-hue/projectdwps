@@ -107,93 +107,158 @@ export const FeeCalculator: React.FC<FeeCalculatorProps> = ({
           <div className="flex items-center gap-1 bg-[#1a2e4c] p-1 rounded-xl self-start md:self-auto border border-[#8396b9]/30">
             <button
               onClick={() => setViewMode('calculator')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                 viewMode === 'calculator'
                   ? 'bg-[#904d00] text-white shadow-xs'
                   : 'text-[#8396b9] hover:text-white'
               }`}
             >
-              Calculator View
+              <span className="material-symbols-outlined text-sm">calculate</span>
+              <span>Calculator View</span>
             </button>
             <button
               onClick={() => setViewMode('comparisonTable')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                 viewMode === 'comparisonTable'
                   ? 'bg-[#904d00] text-white shadow-xs'
                   : 'text-[#8396b9] hover:text-white'
               }`}
             >
-              All Grades Comparison
+              <span className="material-symbols-outlined text-sm">table_chart</span>
+              <span>Estimated Fee Table</span>
             </button>
           </div>
         </div>
       </div>
 
       {viewMode === 'comparisonTable' ? (
-        /* Comparative Fee Matrix */
-        <div className="p-6 sm:p-8 overflow-x-auto">
-          <div className="mb-4 flex items-center justify-between">
-            <h4 className="text-sm font-bold text-[#021936] uppercase tracking-wider">
-              Complete Grade-Wise Fee Matrix (Session {SCHOOL_INFO.academicYear})
-            </h4>
-            <span className="text-xs text-slate-500">* All amounts in Indian Rupees (₹)</span>
+        /* Complete Estimated Fee Table */
+        <div className="p-6 sm:p-8 overflow-x-auto animate-fadeIn">
+          <div className="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="p-1 rounded bg-amber-100 text-[#904d00] flex items-center justify-center">
+                  <span className="material-symbols-outlined text-base">receipt_long</span>
+                </span>
+                <h4 className="text-base font-bold font-serif text-[#021936]">
+                  Complete Estimated Fee Table (Session {SCHOOL_INFO.academicYear})
+                </h4>
+              </div>
+              <p className="text-xs text-slate-600 mt-1">
+                Full schedule covering Pre-Primary (4 stages), Primary Wing &amp; <strong>Middle Wing (Class 6, Class 7 &amp; Class 8 • Age 11–14 Years)</strong>
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-1 bg-[#021936] text-[#FDE68A] border border-[#021936] rounded-lg text-[11px] font-bold">
+                {activeStructures.length} Classes Total
+              </span>
+              <span className="text-xs text-slate-500 font-semibold">* All figures in INR (₹)</span>
+            </div>
           </div>
 
-          <table className="w-full text-left text-xs sm:text-sm border-collapse min-w-[620px]">
+          <table className="w-full text-left text-xs sm:text-sm border-collapse min-w-[700px]">
             <thead>
-              <tr className="bg-[#F2F8FD] border-b border-[#dce3ec] text-[#021936]">
-                <th className="py-3 px-4 font-bold">Grade Level</th>
-                <th className="py-3 px-3 font-bold">Age Group</th>
+              <tr className="bg-[#F2F8FD] border-y border-[#dce3ec] text-[#021936]">
+                <th className="py-3 px-4 font-bold">Class / Grade Level</th>
+                <th className="py-3 px-3 font-bold">Wing</th>
+                <th className="py-3 px-3 font-bold">Age Bracket</th>
                 <th className="py-3 px-3 font-bold">Monthly Tuition</th>
                 <th className="py-3 px-3 font-bold">Smart Class / Mo.</th>
+                <th className="py-3 px-3 font-bold">Monthly Est. Total</th>
                 <th className="py-3 px-3 font-bold">Annual Charges</th>
                 <th className="py-3 px-3 font-bold">One-Time Adm.</th>
                 <th className="py-3 px-4 font-bold text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#dce3ec]">
-              {activeStructures.map((g) => (
-                <tr
-                  key={g.id}
-                  className={`hover:bg-slate-50 transition-colors ${
-                    selectedGradeId === g.id ? 'bg-amber-50/50 font-semibold' : ''
-                  }`}
-                >
-                  <td className="py-3.5 px-4 text-[#021936]">
-                    <div className="font-bold">{g.gradeName}</div>
-                    <span className="text-[10px] text-slate-500 uppercase">{g.category}</span>
-                  </td>
-                  <td className="py-3.5 px-3 text-slate-600">{g.ageGroup}</td>
-                  <td className="py-3.5 px-3 font-mono font-bold text-[#904d00]">₹{g.monthlyTuition.toLocaleString('en-IN')}</td>
-                  <td className="py-3.5 px-3 font-mono text-slate-700">₹{g.activitySmartClass}</td>
-                  <td className="py-3.5 px-3 font-mono text-slate-700">₹{g.annualCharges.toLocaleString('en-IN')}</td>
-                  <td className="py-3.5 px-3 font-mono text-slate-600">₹{g.admissionFee.toLocaleString('en-IN')}</td>
-                  <td className="py-3.5 px-4 text-right">
-                    <button
-                      onClick={() => {
-                        setSelectedGradeId(g.id);
-                        setViewMode('calculator');
-                      }}
-                      className="px-3 py-1 bg-[#021936] hover:bg-[#904d00] text-white rounded text-xs font-bold transition-colors cursor-pointer"
-                    >
-                      Calculate
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {activeStructures.map((g) => {
+                const isMiddle = g.category === 'Middle Wing' || g.id.startsWith('class-6') || g.id.startsWith('class-7') || g.id.startsWith('class-8') || g.gradeName.includes('Class 6') || g.gradeName.includes('Class 7') || g.gradeName.includes('Class 8');
+                const isSelected = selectedGradeId === g.id;
+                const monthlyCombined = g.monthlyTuition + g.activitySmartClass;
+
+                return (
+                  <tr
+                    key={g.id}
+                    className={`transition-colors ${
+                      isSelected
+                        ? 'bg-amber-100/70 font-semibold'
+                        : isMiddle
+                        ? 'bg-amber-50/40 hover:bg-amber-50'
+                        : 'hover:bg-slate-50'
+                    }`}
+                  >
+                    <td className="py-3.5 px-4 text-[#021936]">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold">{g.gradeName}</span>
+                        {isMiddle && (
+                          <span className="px-2 py-0.5 bg-[#021936] text-[#FDE68A] text-[9px] font-bold rounded-full uppercase tracking-wider">
+                            Middle Wing
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">{g.description}</div>
+                    </td>
+                    <td className="py-3.5 px-3">
+                      <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
+                        isMiddle
+                          ? 'bg-[#021936] text-white'
+                          : g.category === 'Early Years'
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                          : 'bg-blue-50 text-blue-800 border border-blue-200'
+                      }`}>
+                        {g.category === 'Early Years' ? 'Pre-Primary' : g.category}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-3 font-medium text-slate-700">
+                      <span className="inline-flex items-center gap-1 font-semibold whitespace-nowrap">
+                        {g.ageGroup}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-3 font-mono font-bold text-[#904d00]">
+                      ₹{g.monthlyTuition.toLocaleString('en-IN')}
+                    </td>
+                    <td className="py-3.5 px-3 font-mono text-slate-700">
+                      ₹{g.activitySmartClass.toLocaleString('en-IN')}
+                    </td>
+                    <td className="py-3.5 px-3 font-mono font-bold text-[#021936]">
+                      ₹{monthlyCombined.toLocaleString('en-IN')}
+                    </td>
+                    <td className="py-3.5 px-3 font-mono text-slate-700">
+                      ₹{g.annualCharges.toLocaleString('en-IN')}
+                    </td>
+                    <td className="py-3.5 px-3 font-mono text-slate-600">
+                      ₹{g.admissionFee.toLocaleString('en-IN')}
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      <button
+                        onClick={() => {
+                          setSelectedGradeId(g.id);
+                          setViewMode('calculator');
+                        }}
+                        className="px-3 py-1.5 bg-[#021936] hover:bg-[#904d00] text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 ml-auto"
+                      >
+                        <span>Calculate</span>
+                        <span className="material-symbols-outlined text-xs">arrow_forward</span>
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
 
           <div className="mt-6 p-4 rounded-xl bg-[#F2F8FD] border border-[#dce3ec] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-[#904d00] text-base">verified</span>
-              <span>No hidden deposits. Uniform &amp; book sets are available at subsidized council rates.</span>
+              <span>
+                <strong>Middle Wing (Class 6, 7 &amp; 8 • Age 11–14):</strong> Covers STEM robotics, composite science labs, sports coaching, and Olympiad mentoring.
+              </span>
             </div>
             <button
               onClick={() => setViewMode('calculator')}
-              className="text-[#904d00] font-bold hover:underline cursor-pointer"
+              className="text-[#904d00] font-bold hover:underline cursor-pointer flex items-center gap-1"
             >
-              ← Back to Custom Calculator
+              <span>← Back to Calculator View</span>
             </button>
           </div>
         </div>
@@ -213,9 +278,9 @@ export const FeeCalculator: React.FC<FeeCalculatorProps> = ({
               {/* Wing Filter Buttons */}
               <div className="flex flex-wrap items-center gap-1 bg-[#F2F8FD] p-1 rounded-lg border border-[#dce3ec] text-[11px]">
                 {[
-                  { id: 'all', label: 'All Classes (7)' },
+                  { id: 'all', label: `All Classes (${activeStructures.length})` },
                   { id: 'Early Years', label: 'Pre-Primary (4 Classes)' },
-                  { id: 'Primary Wing', label: 'Primary Wing (Grades 1-5)' },
+                  { id: 'Primary Wing', label: 'Primary Wing (3 Levels)' },
                   { id: 'Middle Wing', label: 'Middle Wing (Class 6-8)' },
                 ].map((w) => (
                   <button
@@ -245,11 +310,12 @@ export const FeeCalculator: React.FC<FeeCalculatorProps> = ({
               </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5">
               {activeStructures
                 .filter((g) => activeCategoryFilter === 'all' || g.category === activeCategoryFilter)
                 .map((grade) => {
                   const isSelected = selectedGradeId === grade.id;
+                  const isMiddleClass = grade.category === 'Middle Wing';
                   return (
                     <button
                       key={grade.id}
@@ -257,20 +323,25 @@ export const FeeCalculator: React.FC<FeeCalculatorProps> = ({
                       className={`p-3 rounded-xl border text-left transition-all duration-150 cursor-pointer ${
                         isSelected
                           ? 'border-[#904d00] bg-amber-50/70 text-[#021936] shadow-xs ring-2 ring-[#904d00]/30'
+                          : isMiddleClass
+                          ? 'border-[#dce3ec] bg-amber-50/30 hover:bg-amber-50/60 text-[#44474e]'
                           : 'border-[#dce3ec] bg-[#F2F8FD] hover:bg-slate-100 text-[#44474e]'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                        <span className={`text-[9px] font-bold uppercase tracking-wider ${isMiddleClass ? 'text-[#904d00]' : 'text-slate-400'}`}>
                           {grade.category === 'Early Years' ? 'Pre-Primary' : grade.category.replace(' Wing', '')}
                         </span>
+                        {isMiddleClass && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#904d00]"></span>
+                        )}
                       </div>
                       <div className="text-xs font-bold truncate mt-0.5" title={grade.gradeName}>
                         {grade.gradeName}
                       </div>
                       <div className="text-[10px] font-medium text-slate-600 mt-0.5 flex items-center gap-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-[#904d00]/60"></span>
-                        <span>{grade.ageGroup}</span>
+                        <span className="whitespace-nowrap">{grade.ageGroup}</span>
                       </div>
                       <div className="text-xs font-mono font-bold text-[#904d00] mt-1.5">
                         ₹{grade.monthlyTuition.toLocaleString('en-IN')}/mo
@@ -278,6 +349,24 @@ export const FeeCalculator: React.FC<FeeCalculatorProps> = ({
                     </button>
                   );
                 })}
+            </div>
+
+            {/* Quick Banner to Complete Estimated Fee Table */}
+            <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl bg-[#F2F8FD] border border-[#dce3ec] text-xs">
+              <div className="flex items-center gap-2 text-slate-700">
+                <span className="material-symbols-outlined text-[#904d00] text-base">table_chart</span>
+                <span>
+                  Comparing all classes? Check the <strong>Estimated Fee Table</strong> featuring all <strong>10 Classes (Playgroup through Middle Wing Class 6, 7 &amp; 8)</strong>.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewMode('comparisonTable')}
+                className="font-bold text-[#904d00] hover:text-[#B45309] hover:underline flex items-center gap-1 cursor-pointer shrink-0"
+              >
+                <span>View Estimated Fee Table</span>
+                <span className="material-symbols-outlined text-sm">arrow_forward</span>
+              </button>
             </div>
           </div>
 

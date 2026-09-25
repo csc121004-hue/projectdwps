@@ -199,7 +199,9 @@ export const CampusTourModal: React.FC<CampusTourModalProps> = ({ isOpen, onClos
                     <option value="U.KG">U.KG (Upper KG, Age 5–6)</option>
                     <option value="Grade 1">Grade 1 (Age 6+)</option>
                     <option value="Grade 2 to 5">Grade 2 to 5 (Primary Wing)</option>
-                    <option value="Class 6 to 8 (Middle Wing)">Class 6 to 8 - Middle Wing (Age 11–14)</option>
+                    <option value="Class 6">Class 6 (Middle Wing, Age 11–12)</option>
+                    <option value="Class 7">Class 7 (Middle Wing, Age 12–13)</option>
+                    <option value="Class 8">Class 8 (Middle Wing, Age 13–14)</option>
                   </select>
                 </div>
               </div>

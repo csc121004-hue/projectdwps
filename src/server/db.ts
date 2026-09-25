@@ -407,23 +407,36 @@ export async function initializeDatabase(): Promise<{ success: boolean; message:
           features: ['Smooth Grade 1 transition kit', 'Sentence formation & phonics mastery', 'Early science & environmental exploration', 'Confidence & stage speech presentation']
         },
         {
-          id: 'grade-1-2',
-          gradeName: 'Grade 1 & 2',
+          id: 'class-1',
+          gradeName: 'Class 1 (Grade 1)',
           category: 'Primary Wing',
-          ageGroup: '6 – 7.5 Years',
+          ageGroup: '6 – 7 Years',
           monthlyTuition: 3300,
           annualCharges: 4500,
           activitySmartClass: 550,
           admissionFee: 5000,
           securityDeposit: 2000,
-          description: 'Formal CBSE aligned curriculum with interactive digital boards, foundational arithmetic, and environmental studies.',
+          description: 'Formal CBSE foundational primary stage with interactive digital smart boards, arithmetic, and phonetics.',
           features: ['Smart Classroom Digitization', 'Math lab & hands-on manipulatives', 'Weekly sports & physical training', 'Reading club & library access']
         },
         {
-          id: 'grade-3-5',
-          gradeName: 'Grade 3 to 5',
+          id: 'class-2',
+          gradeName: 'Class 2 (Grade 2)',
           category: 'Primary Wing',
-          ageGroup: '7.5 – 10.5 Years',
+          ageGroup: '7 – 8 Years',
+          monthlyTuition: 3300,
+          annualCharges: 4500,
+          activitySmartClass: 550,
+          admissionFee: 5000,
+          securityDeposit: 2000,
+          description: 'Consolidating reading fluency, mental arithmetic, conversational English, and environmental exploration.',
+          features: ['Interactive Smart Boards', 'Mental Math & Logic Puzzles', 'Physical Education & Yoga', 'Art, Craft & Creative Writing']
+        },
+        {
+          id: 'grade-3-5',
+          gradeName: 'Class 3 to 5 (Grades 3–5)',
+          category: 'Primary Wing',
+          ageGroup: '8 – 11 Years',
           monthlyTuition: 3600,
           annualCharges: 4800,
           activitySmartClass: 600,
@@ -433,17 +446,43 @@ export async function initializeDatabase(): Promise<{ success: boolean; message:
           features: ['Computer & Coding basics', 'Science experimentation kits', 'Public speaking & debate rounds', 'Inter-house competitions']
         },
         {
-          id: 'grade-6-8',
-          gradeName: 'Class 6 to 8 (Middle Wing)',
+          id: 'class-6',
+          gradeName: 'Class 6 (Grade 6)',
           category: 'Middle Wing',
-          ageGroup: '11 – 14 Years',
+          ageGroup: '11 – 12 Years',
           monthlyTuition: 4000,
           annualCharges: 5200,
           activitySmartClass: 700,
           admissionFee: 5500,
           securityDeposit: 2500,
-          description: 'Rigorous academic preparation, advanced science projects, digital design, and leadership initiatives.',
-          features: ['Advanced Science & Math labs', 'Robotics & STEM projects', 'Co-curricular sports coaching', 'Career guidance & Olympiad prep']
+          description: 'Middle school entry level focusing on composite science labs, STEM concepts, coding, and sports.',
+          features: ['CBSE Middle Curriculum', 'Science & Math practical labs', 'Robotics & Computer Programming', 'Inter-House Sports & Olympiad prep']
+        },
+        {
+          id: 'class-7',
+          gradeName: 'Class 7 (Grade 7)',
+          category: 'Middle Wing',
+          ageGroup: '12 – 13 Years',
+          monthlyTuition: 4000,
+          annualCharges: 5200,
+          activitySmartClass: 700,
+          admissionFee: 5500,
+          securityDeposit: 2500,
+          description: 'Analytical skill building, scientific experimentation, debate and literary clubs, and competitive sports coaching.',
+          features: ['Advanced Science Lab experiments', 'English Literary & Debate Club', 'Digital IT & Computational Thinking', 'Sports training & athletics']
+        },
+        {
+          id: 'class-8',
+          gradeName: 'Class 8 (Grade 8)',
+          category: 'Middle Wing',
+          ageGroup: '13 – 14 Years',
+          monthlyTuition: 4000,
+          annualCharges: 5200,
+          activitySmartClass: 700,
+          admissionFee: 5500,
+          securityDeposit: 2500,
+          description: 'Culminating middle school stage preparing students for secondary board syllabus, leadership, and Olympiads.',
+          features: ['Secondary Board readiness syllabus', 'Advanced STEM & Chemistry/Physics lab', 'Student Leadership Council', 'Career guidance & aptitude coaching']
         }
       ];
 

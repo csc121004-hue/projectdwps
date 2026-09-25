@@ -87,8 +87,10 @@ export default function App() {
       const saved = localStorage.getItem('dwps_live_fee_structures');
       if (saved) {
         const parsed: GradeFeeStructure[] = JSON.parse(saved);
-        const hasUkg = parsed.some((g) => g.id === 'ukg' || (g.gradeName && g.gradeName.includes('U.KG')));
-        if (hasUkg && parsed.length >= 7) {
+        const has10Classes =
+          parsed.some((g) => g.id === 'class-6' || (g.gradeName && g.gradeName.includes('Class 6'))) &&
+          parsed.length >= 10;
+        if (has10Classes) {
           return parsed;
         }
       }
@@ -98,11 +100,20 @@ export default function App() {
     return GRADE_FEE_STRUCTURES;
   });
 
-  // Admin User Session State
+  // Admin User Session State - Nulled for all previous created ID/passwords
   const [adminUser, setAdminUser] = useState<{ name: string; role: string; email: string } | null>(() => {
     try {
       const saved = localStorage.getItem('dwps_admin_session');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Only accept the new authorized ID Rahul@dwpsballabgarh.org; all previous IDs are nulled
+        if (parsed?.email?.toLowerCase() === 'rahul@dwpsballabgarh.org') {
+          return parsed;
+        } else {
+          localStorage.removeItem('dwps_admin_session');
+          return null;
+        }
+      }
     } catch (e) {
       console.warn('Failed to parse admin session', e);
     }

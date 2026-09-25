@@ -366,7 +366,9 @@ export const AdmissionsSection: React.FC<AdmissionsSectionProps> = ({
                           <option value="Grade 3">Grade 3</option>
                           <option value="Grade 4">Grade 4</option>
                           <option value="Grade 5">Grade 5</option>
-                          <option value="Class 6 to 8 (Middle Wing)">Class 6 to 8 - Middle Wing (Age 11 – 14)</option>
+                          <option value="Class 6">Class 6 (Middle Wing, Age 11–12)</option>
+                          <option value="Class 7">Class 7 (Middle Wing, Age 12–13)</option>
+                          <option value="Class 8">Class 8 (Middle Wing, Age 13–14)</option>
                         </select>
                       </div>
                     </div>

@@ -24,6 +24,7 @@ export const AdmissionsView: React.FC<AdmissionsViewProps> = ({
   // Age Eligibility Calculator State
   const [childAge, setChildAge] = useState<number>(4);
   const [eligibilityResult, setEligibilityResult] = useState<string>('L.KG (Lower KG, Age 4 – 5 Years)');
+  const [admissionsFeeTab, setAdmissionsFeeTab] = useState<'estimator' | 'table'>('estimator');
 
   const checkEligibility = (age: number) => {
     setChildAge(age);
@@ -153,19 +154,20 @@ export const AdmissionsView: React.FC<AdmissionsViewProps> = ({
                 <input
                   type="range"
                   min="2"
-                  max="12"
+                  max="14"
                   step="0.5"
                   value={childAge}
                   onChange={(e) => checkEligibility(parseFloat(e.target.value))}
                   className="w-full accent-[#904d00] cursor-pointer"
                 />
 
-                <div className="flex justify-between text-[11px] text-slate-400">
-                  <span>2.5 Yrs (Playgroup)</span>
-                  <span>3 Yrs (Nursery)</span>
-                  <span>4 Yrs (L.KG)</span>
-                  <span>5 Yrs (U.KG)</span>
-                  <span>6+ Yrs (Grade 1)</span>
+                <div className="flex justify-between text-[10px] sm:text-[11px] text-slate-400">
+                  <span>2.5Y (PG)</span>
+                  <span>3Y (Nur)</span>
+                  <span>4Y (L.KG)</span>
+                  <span>5Y (U.KG)</span>
+                  <span>6+Y (Gr 1)</span>
+                  <span>11-14Y (Gr 6-8)</span>
                 </div>
 
                 <div className="p-4 rounded-xl bg-[#F2F8FD] border border-[#dce3ec] mt-4">
@@ -196,193 +198,300 @@ export const AdmissionsView: React.FC<AdmissionsViewProps> = ({
           {/* Tool 2: Fee Structure Estimator */}
           <div className="bg-white p-7 sm:p-8 rounded-2xl border border-[#dce3ec] custom-shadow-card flex flex-col justify-between">
             <div>
-              <div className="flex items-center gap-2.5 mb-4">
-                <span className="p-2.5 rounded-lg bg-[#F2F8FD] text-[#904d00]">
-                  <span className="material-symbols-outlined text-2xl">calculate</span>
-                </span>
-                <div>
-                  <h3 className="text-lg font-bold font-serif text-[#021936]">
-                    Fee Structure Estimator
-                  </h3>
-                  <p className="text-xs text-slate-500">Session 2026-27 • Transparent &amp; Affordable</p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-2.5">
+                  <span className="p-2.5 rounded-lg bg-[#F2F8FD] text-[#904d00]">
+                    <span className="material-symbols-outlined text-2xl">calculate</span>
+                  </span>
+                  <div>
+                    <h3 className="text-lg font-bold font-serif text-[#021936]">
+                      Fee Structure Estimator
+                    </h3>
+                    <p className="text-xs text-slate-500">Session 2026-27 • Transparent &amp; Affordable</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1 bg-[#F2F8FD] p-1 rounded-xl border border-[#dce3ec] self-start sm:self-auto text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setAdmissionsFeeTab('estimator')}
+                    className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                      admissionsFeeTab === 'estimator'
+                        ? 'bg-[#021936] text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-[#021936]'
+                    }`}
+                  >
+                    Estimator
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAdmissionsFeeTab('table')}
+                    className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                      admissionsFeeTab === 'table'
+                        ? 'bg-[#904d00] text-white shadow-2xs'
+                        : 'text-slate-600 hover:text-[#021936]'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-xs">table_chart</span>
+                    <span>Estimated Fee Table</span>
+                  </button>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="block text-xs font-bold text-[#021936] uppercase">
-                      Select Class / Grade
-                    </label>
-                    <span className="text-[11px] font-semibold text-[#904d00]">
-                      {selectedFeeGrade.gradeName} • Age {selectedFeeGrade.ageGroup}
+              {admissionsFeeTab === 'table' ? (
+                /* Complete Estimated Fee Table View */
+                <div className="space-y-3 animate-fadeIn">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-[#021936] uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-sm text-[#904d00]">table_chart</span>
+                      <span>Estimated Fee Table (All Grades)</span>
                     </span>
+                    <span className="text-[11px] text-slate-500 font-semibold">* Session {SCHOOL_INFO.academicYear}</span>
                   </div>
 
-                  {/* Pre-Primary Section (4 Classes) */}
-                  <div className="mb-2.5">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                      Pre-Primary Section (4 Classes):
-                    </span>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                      {activeStructures.filter(s => s.category === 'Early Years').map((cls) => (
-                        <button
-                          key={cls.id}
-                          type="button"
-                          onClick={() => setSelectedFeeGradeId(cls.id)}
-                          className={`p-2 text-left rounded-xl border transition-all cursor-pointer ${
-                            selectedFeeGradeId === cls.id
-                              ? 'bg-[#021936] text-white border-[#021936] shadow-xs ring-2 ring-[#904d00]/30'
-                              : 'bg-white text-slate-700 border-[#dce3ec] hover:bg-slate-50'
-                          }`}
-                        >
-                          <div className="text-xs font-bold truncate">{cls.gradeName.split(' ')[0]}</div>
-                          <div className={`text-[10px] font-medium mt-0.5 ${selectedFeeGradeId === cls.id ? 'text-[#FDE68A]' : 'text-slate-500'}`}>
-                            {cls.ageGroup}
-                          </div>
-                          <div className={`text-[11px] font-mono font-bold mt-1 ${selectedFeeGradeId === cls.id ? 'text-[#fe932c]' : 'text-[#904d00]'}`}>
-                            ₹{cls.monthlyTuition}/mo
-                          </div>
-                        </button>
-                      ))}
-                    </div>
+                  <div className="overflow-x-auto border border-[#dce3ec] rounded-xl">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-[#F2F8FD] text-[#021936] border-b border-[#dce3ec]">
+                          <th className="py-2.5 px-3 font-bold">Class / Grade</th>
+                          <th className="py-2.5 px-2 font-bold">Age</th>
+                          <th className="py-2.5 px-2 font-bold">Monthly</th>
+                          <th className="py-2.5 px-2 font-bold">Smart Cl.</th>
+                          <th className="py-2.5 px-2 font-bold">Annual</th>
+                          <th className="py-2.5 px-2 font-bold text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#dce3ec]">
+                        {activeStructures.map((cls) => {
+                          const isMiddle = cls.category === 'Middle Wing';
+                          const isSelected = selectedFeeGradeId === cls.id;
+                          return (
+                            <tr
+                              key={cls.id}
+                              className={`transition-colors ${
+                                isSelected
+                                  ? 'bg-amber-100/70 font-semibold'
+                                  : isMiddle
+                                  ? 'bg-amber-50/40 hover:bg-amber-50'
+                                  : 'hover:bg-slate-50'
+                              }`}
+                            >
+                              <td className="py-2 px-3">
+                                <div className="font-bold text-[#021936] flex items-center gap-1.5">
+                                  <span>{cls.gradeName}</span>
+                                  {isMiddle && (
+                                    <span className="px-1.5 py-0.2 bg-[#021936] text-[#FDE68A] text-[9px] rounded font-bold uppercase">
+                                      Middle Wing
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-slate-400">{cls.category}</div>
+                              </td>
+                              <td className="py-2 px-2 text-slate-600 font-medium whitespace-nowrap">{cls.ageGroup}</td>
+                              <td className="py-2 px-2 font-mono font-bold text-[#904d00]">₹{cls.monthlyTuition.toLocaleString('en-IN')}</td>
+                              <td className="py-2 px-2 font-mono text-slate-700">₹{cls.activitySmartClass}</td>
+                              <td className="py-2 px-2 font-mono text-slate-700">₹{cls.annualCharges.toLocaleString('en-IN')}</td>
+                              <td className="py-2 px-2 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedFeeGradeId(cls.id);
+                                    setAdmissionsFeeTab('estimator');
+                                  }}
+                                  className="px-2.5 py-1 bg-[#021936] hover:bg-[#904d00] text-white rounded text-[11px] font-bold transition-colors cursor-pointer"
+                                >
+                                  Select
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
 
-                  {/* Primary Wing (Grades 1 to 5) */}
-                  <div className="mb-2.5">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                      Primary Wing (Age 6 – 10.5 Years):
+                  <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-900 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-amber-700 text-sm">info</span>
+                    <span>
+                      <strong>All 10 Classes Listed ({activeStructures.length} total):</strong> Includes Pre-Primary (4 stages), Primary Wing &amp; Middle Wing (Class 6, 7 &amp; 8). Click "Select" to calculate exact dues.
                     </span>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {activeStructures.filter(s => s.category === 'Primary Wing').map((cls) => (
-                        <button
-                          key={cls.id}
-                          type="button"
-                          onClick={() => setSelectedFeeGradeId(cls.id)}
-                          className={`p-2 text-left rounded-xl border transition-all cursor-pointer ${
-                            selectedFeeGradeId === cls.id
-                              ? 'bg-[#021936] text-white border-[#021936] shadow-xs ring-2 ring-[#904d00]/30'
-                              : 'bg-white text-slate-700 border-[#dce3ec] hover:bg-slate-50'
-                          }`}
-                        >
-                          <div className="text-xs font-bold truncate">{cls.gradeName}</div>
-                          <div className={`text-[10px] font-medium mt-0.5 ${selectedFeeGradeId === cls.id ? 'text-[#FDE68A]' : 'text-slate-500'}`}>
-                            {cls.ageGroup}
-                          </div>
-                          <div className={`text-[11px] font-mono font-bold mt-1 ${selectedFeeGradeId === cls.id ? 'text-[#fe932c]' : 'text-[#904d00]'}`}>
-                            ₹{cls.monthlyTuition}/mo
-                          </div>
-                        </button>
-                      ))}
-                    </div>
                   </div>
-
-                  {/* Middle Wing (Class 6 to 8 • Age 11 to 14) */}
+                </div>
+              ) : (
+                <div className="space-y-4">
                   <div>
-                    <span className="text-[10px] font-bold text-[#904d00] uppercase tracking-wider block mb-1 flex items-center justify-between">
-                      <span className="flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#904d00]"></span>
-                        Middle Wing (Class 6 to 8)
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-xs font-bold text-[#021936] uppercase">
+                        Select Class / Grade
+                      </label>
+                      <span className="text-[11px] font-semibold text-[#904d00]">
+                        {selectedFeeGrade.gradeName} • Age {selectedFeeGrade.ageGroup}
                       </span>
-                      <span className="text-[9px] bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-bold">
-                        Age 11 – 14 Years
+                    </div>
+
+                    {/* Pre-Primary Section (4 Classes) */}
+                    <div className="mb-2.5">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                        Pre-Primary Section (4 Classes • Age 2.5 – 6):
                       </span>
-                    </span>
-                    <div className="grid grid-cols-1 gap-1.5">
-                      {activeStructures.filter(s => s.category === 'Middle Wing').map((cls) => (
-                        <button
-                          key={cls.id}
-                          type="button"
-                          onClick={() => setSelectedFeeGradeId(cls.id)}
-                          className={`p-2.5 text-left rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
-                            selectedFeeGradeId === cls.id
-                              ? 'bg-[#021936] text-white border-[#021936] shadow-xs ring-2 ring-[#904d00]/30'
-                              : 'bg-white text-slate-700 border-[#dce3ec] hover:bg-slate-50'
-                          }`}
-                        >
-                          <div>
-                            <div className="text-xs font-bold flex items-center gap-2">
-                              <span>Class 6 to 8 (Middle Wing)</span>
-                              <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${selectedFeeGradeId === cls.id ? 'bg-[#904d00] text-white' : 'bg-slate-100 text-slate-700'}`}>
-                                Grades 6, 7 &amp; 8
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                        {activeStructures.filter(s => s.category === 'Early Years').map((cls) => (
+                          <button
+                            key={cls.id}
+                            type="button"
+                            onClick={() => setSelectedFeeGradeId(cls.id)}
+                            className={`p-2 text-left rounded-xl border transition-all cursor-pointer ${
+                              selectedFeeGradeId === cls.id
+                                ? 'bg-[#021936] text-white border-[#021936] shadow-xs ring-2 ring-[#904d00]/30'
+                                : 'bg-white text-slate-700 border-[#dce3ec] hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className="text-xs font-bold truncate">{cls.gradeName.split(' ')[0]}</div>
+                            <div className={`text-[10px] font-medium mt-0.5 ${selectedFeeGradeId === cls.id ? 'text-[#FDE68A]' : 'text-slate-500'}`}>
+                              {cls.ageGroup}
+                            </div>
+                            <div className={`text-[11px] font-mono font-bold mt-1 ${selectedFeeGradeId === cls.id ? 'text-[#fe932c]' : 'text-[#904d00]'}`}>
+                              ₹{cls.monthlyTuition}/mo
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Primary Wing (Grades 1 to 5) */}
+                    <div className="mb-2.5">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                        Primary Wing (3 Levels • Age 6 – 11):
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                        {activeStructures.filter(s => s.category === 'Primary Wing').map((cls) => (
+                          <button
+                            key={cls.id}
+                            type="button"
+                            onClick={() => setSelectedFeeGradeId(cls.id)}
+                            className={`p-2 text-left rounded-xl border transition-all cursor-pointer ${
+                              selectedFeeGradeId === cls.id
+                                ? 'bg-[#021936] text-white border-[#021936] shadow-xs ring-2 ring-[#904d00]/30'
+                                : 'bg-white text-slate-700 border-[#dce3ec] hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className="text-xs font-bold truncate">{cls.gradeName}</div>
+                            <div className={`text-[10px] font-medium mt-0.5 ${selectedFeeGradeId === cls.id ? 'text-[#FDE68A]' : 'text-slate-500'}`}>
+                              {cls.ageGroup}
+                            </div>
+                            <div className={`text-[11px] font-mono font-bold mt-1 ${selectedFeeGradeId === cls.id ? 'text-[#fe932c]' : 'text-[#904d00]'}`}>
+                              ₹{cls.monthlyTuition}/mo
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Middle Wing (Class 6, 7 & 8 • Age 11 to 14) */}
+                    <div>
+                      <span className="text-[10px] font-bold text-[#904d00] uppercase tracking-wider block mb-1 flex items-center justify-between">
+                        <span className="flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#904d00]"></span>
+                          Middle Wing (Class 6, 7 &amp; 8):
+                        </span>
+                        <span className="text-[9px] bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full font-bold">
+                          Age 11 – 14 Years
+                        </span>
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                        {activeStructures.filter(s => s.category === 'Middle Wing').map((cls) => (
+                          <button
+                            key={cls.id}
+                            type="button"
+                            onClick={() => setSelectedFeeGradeId(cls.id)}
+                            className={`p-2.5 text-left rounded-xl border transition-all cursor-pointer ${
+                              selectedFeeGradeId === cls.id
+                                ? 'bg-[#021936] text-white border-[#021936] shadow-xs ring-2 ring-[#904d00]/30'
+                                : 'bg-amber-50/40 text-slate-700 border-[#dce3ec] hover:bg-amber-50'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold">{cls.gradeName}</span>
+                              <span className={`text-[9px] px-1 py-0.2 rounded font-semibold ${selectedFeeGradeId === cls.id ? 'bg-[#904d00] text-white' : 'bg-slate-200/80 text-slate-700'}`}>
+                                {cls.ageGroup}
                               </span>
                             </div>
-                            <div className={`text-[10px] font-medium mt-0.5 ${selectedFeeGradeId === cls.id ? 'text-[#FDE68A]' : 'text-slate-500'}`}>
-                              Age 11 – 14 Years • CBSE Middle Curriculum, STEM Science Labs &amp; Sports
+                            <div className={`text-[10px] font-medium mt-0.5 line-clamp-1 ${selectedFeeGradeId === cls.id ? 'text-[#FDE68A]' : 'text-slate-500'}`}>
+                              {cls.description}
                             </div>
-                          </div>
-                          <div className="text-right pl-3 shrink-0">
-                            <div className={`text-xs sm:text-sm font-mono font-bold ${selectedFeeGradeId === cls.id ? 'text-[#fe932c]' : 'text-[#904d00]'}`}>
-                              ₹{cls.monthlyTuition.toLocaleString('en-IN')}/mo
+                            <div className="flex items-center justify-between mt-2 pt-1 border-t border-slate-200/40">
+                              <span className="text-[9px] text-slate-400">Tuition</span>
+                              <span className={`text-xs font-mono font-bold ${selectedFeeGradeId === cls.id ? 'text-[#fe932c]' : 'text-[#904d00]'}`}>
+                                ₹{cls.monthlyTuition.toLocaleString('en-IN')}/mo
+                              </span>
                             </div>
-                            <div className="text-[9px] text-slate-400">Monthly Tuition</div>
-                          </div>
-                        </button>
-                      ))}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="space-y-2 pt-1">
-                  <label className="flex items-center gap-2.5 text-xs text-[#021936] cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={includeTransport}
-                      onChange={(e) => setIncludeTransport(e.target.checked)}
-                      className="rounded accent-[#904d00]"
-                    />
-                    <span>Include Safe School Bus Transport (Subhash Colony / Ballabgarh)</span>
-                  </label>
+                  <div className="space-y-2 pt-1">
+                    <label className="flex items-center gap-2.5 text-xs text-[#021936] cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={includeTransport}
+                        onChange={(e) => setIncludeTransport(e.target.checked)}
+                        className="rounded accent-[#904d00]"
+                      />
+                      <span>Include Safe School Bus Transport (Subhash Colony / Ballabgarh)</span>
+                    </label>
 
-                  <label className="flex items-center gap-2.5 text-xs text-[#021936] cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={isSibling}
-                      onChange={(e) => setIsSibling(e.target.checked)}
-                      className="rounded accent-[#904d00]"
-                    />
-                    <span>Sibling Concession (10% rebate on monthly tuition fee)</span>
-                  </label>
-                </div>
+                    <label className="flex items-center gap-2.5 text-xs text-[#021936] cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isSibling}
+                        onChange={(e) => setIsSibling(e.target.checked)}
+                        className="rounded accent-[#904d00]"
+                      />
+                      <span>Sibling Concession (10% rebate on monthly tuition fee)</span>
+                    </label>
+                  </div>
 
-                {/* Calculation Summary Card */}
-                <div className="p-4 rounded-xl bg-[#F2F8FD] border border-[#dce3ec] space-y-2 text-xs">
-                  <div className="flex justify-between text-slate-600">
-                    <span>Selected Class:</span>
-                    <span className="font-bold text-[#021936]">{selectedFeeGrade.gradeName} ({selectedFeeGrade.ageGroup})</span>
-                  </div>
-                  <div className="flex justify-between text-slate-600">
-                    <span>Monthly Tuition Fee:</span>
-                    <span className="font-semibold text-[#021936]">₹{tuition.toLocaleString('en-IN')}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-600">
-                    <span>Smart Classroom &amp; Activity:</span>
-                    <span className="font-semibold text-[#021936]">₹{smartClass.toLocaleString('en-IN')}</span>
-                  </div>
-                  {includeTransport && (
+                  {/* Calculation Summary Card */}
+                  <div className="p-4 rounded-xl bg-[#F2F8FD] border border-[#dce3ec] space-y-2 text-xs">
                     <div className="flex justify-between text-slate-600">
-                      <span>Transport &amp; GPS Bus Service:</span>
-                      <span className="font-semibold text-[#021936]">₹{transport.toLocaleString('en-IN')}</span>
+                      <span>Selected Class:</span>
+                      <span className="font-bold text-[#021936]">{selectedFeeGrade.gradeName} ({selectedFeeGrade.ageGroup})</span>
                     </div>
-                  )}
-                  {isSibling && (
-                    <div className="flex justify-between text-emerald-700 font-medium">
-                      <span>Sibling Discount Applied:</span>
-                      <span>-₹{siblingDiscount.toLocaleString('en-IN')}</span>
+                    <div className="flex justify-between text-slate-600">
+                      <span>Monthly Tuition Fee:</span>
+                      <span className="font-semibold text-[#021936]">₹{tuition.toLocaleString('en-IN')}</span>
                     </div>
-                  )}
-                  <div className="pt-2 border-t border-[#dce3ec] flex justify-between items-baseline">
-                    <span className="text-xs font-bold text-[#021936] uppercase">Est. Monthly:</span>
-                    <span className="text-lg font-bold text-[#904d00] font-mono">
-                      ₹{netMonthly.toLocaleString('en-IN')}/mo
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center text-[11px] text-slate-500">
-                    <span>Quarterly Payment (3 Months):</span>
-                    <span className="font-semibold text-slate-700">₹{quarterlyEst.toLocaleString('en-IN')}</span>
+                    <div className="flex justify-between text-slate-600">
+                      <span>Smart Classroom &amp; Activity:</span>
+                      <span className="font-semibold text-[#021936]">₹{smartClass.toLocaleString('en-IN')}</span>
+                    </div>
+                    {includeTransport && (
+                      <div className="flex justify-between text-slate-600">
+                        <span>Transport &amp; GPS Bus Service:</span>
+                        <span className="font-semibold text-[#021936]">₹{transport.toLocaleString('en-IN')}</span>
+                      </div>
+                    )}
+                    {isSibling && (
+                      <div className="flex justify-between text-emerald-700 font-medium">
+                        <span>Sibling Discount Applied:</span>
+                        <span>-₹{siblingDiscount.toLocaleString('en-IN')}</span>
+                      </div>
+                    )}
+                    <div className="pt-2 border-t border-[#dce3ec] flex justify-between items-baseline">
+                      <span className="text-xs font-bold text-[#021936] uppercase">Est. Monthly:</span>
+                      <span className="text-lg font-bold text-[#904d00] font-mono">
+                        ₹{netMonthly.toLocaleString('en-IN')}/mo
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-[11px] text-slate-500">
+                      <span>Quarterly Payment (3 Months):</span>
+                      <span className="font-semibold text-slate-700">₹{quarterlyEst.toLocaleString('en-IN')}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
 
             <p className="text-[11px] text-slate-400 mt-4">

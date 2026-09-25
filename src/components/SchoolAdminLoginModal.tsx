@@ -30,25 +30,30 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
       const trimmedId = loginId.trim();
       const trimmedPassword = password.trim();
 
-      // Authorized credential verification: ID = Rahul@dwps, Password = dwps#2026
+      // Sole authorized institutional credentials:
+      // ID: Rahul@dwpsballabgarh.org
+      // Password: rahul#dwps2026
+      // All previous IDs and passwords are completely nulled and rejected.
       if (
-        trimmedId.toLowerCase() === 'rahul@dwps' &&
-        trimmedPassword === 'dwps#2026'
+        trimmedId.toLowerCase() === 'rahul@dwpsballabgarh.org' &&
+        trimmedPassword === 'rahul#dwps2026'
       ) {
         const user = {
           name: 'Mr. Rahul Chaudhary',
           role: 'School Director / Administrator',
-          email: 'Rahul@dwps',
+          email: 'Rahul@dwpsballabgarh.org',
         };
         if (rememberMe) {
           localStorage.setItem('dwps_admin_session', JSON.stringify(user));
+        } else {
+          localStorage.removeItem('dwps_admin_session');
         }
         setIsLoading(false);
         onLoginSuccess(user);
         onClose();
       } else {
         setIsLoading(false);
-        setErrorMsg('Galat ID ya Password. Kripya sahi credentials darj karein (Invalid ID or Password).');
+        setErrorMsg('Galat ID ya Password. Kripya sahi credentials darj karein. (All previous logins have been revoked. Use new authorized credentials).');
       }
     }, 450);
   };
@@ -120,7 +125,7 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
                   spellCheck="false"
                   value={loginId}
                   onChange={(e) => setLoginId(e.target.value)}
-                  placeholder="Enter ID"
+                  placeholder="Rahul@dwpsballabgarh.org"
                   className="w-full h-11 pl-10 pr-3 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-semibold text-[#021936] focus:border-[#904d00] focus:bg-white outline-none transition-all"
                 />
               </div>
