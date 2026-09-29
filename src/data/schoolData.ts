@@ -1,3 +1,10 @@
+import {
+  NEHA_PHOTO_DATA,
+  ANJALI_PHOTO_DATA,
+  GEETA_PHOTO_DATA,
+  PAVITRA_PHOTO_DATA
+} from '../assets/facultyBase64.js';
+
 export interface GalleryItem {
   id: string;
   title: string;
@@ -80,7 +87,7 @@ export const TEAM_MEMBERS: TeamMember[] = [
   {
     id: 'charan-singh-ghanghas',
     name: 'Ch. Charan Singh Ghanghas',
-    role: 'President',
+    role: 'Chairman',
     category: 'Leadership',
     imageUrl: 'https://assets.zyrosite.com/cdn-cgi/image/format=auto,w=768,fit=crop/UmKLUfDB0p4bPZYE/gemini_generated_image_c7ggdic7ggdic7gg-rjE3nTZVAfXcxWy4.png',
     description: 'Visionary leadership guiding Disney World Public School with values of ethical education, discipline, and community upliftment in Ballabgarh.',
@@ -112,7 +119,7 @@ export const TEAM_MEMBERS: TeamMember[] = [
     name: 'Ms. Anuradha',
     role: 'Teacher',
     category: 'Faculty',
-    imageUrl: '/assets/faculty/anuradha.jpg',
+    imageUrl: '/assets/faculty/anuradha.jpg?v=3',
     description: 'Inspiring young learners with interactive classroom instruction, language fluency development, and engaging experiential activities.',
     qualifications: 'B.A., B.Ed.',
     subjects: ['Language Arts', 'Environmental Studies', 'Social Skills']
@@ -122,7 +129,7 @@ export const TEAM_MEMBERS: TeamMember[] = [
     name: 'Ms. Bhavna',
     role: 'Teacher',
     category: 'Faculty',
-    imageUrl: '/assets/faculty/bhavna.jpg',
+    imageUrl: '/assets/faculty/bhavna.jpg?v=3',
     description: 'Fostering joyful foundational learning through interactive literacy activities, logic exercises, and hands-on creative crafts.',
     qualifications: 'B.Sc., B.Ed.',
     subjects: ['Early Childhood Literacy', 'Logic', 'Puzzles', 'Art & Craft']
@@ -132,7 +139,7 @@ export const TEAM_MEMBERS: TeamMember[] = [
     name: 'Ms. Mamta',
     role: 'Teacher',
     category: 'Faculty',
-    imageUrl: '/assets/faculty/mamta.jpg',
+    imageUrl: '/assets/faculty/mamta.jpg?v=3',
     description: 'Specializing in early childhood cognitive and motor development, phonics mastery, and creative storytelling in a nurturing atmosphere.',
     qualifications: 'N.T.T., B.A.',
     subjects: ['Early Childhood Literacy', 'Phonics', 'Creative Expression']
@@ -142,7 +149,7 @@ export const TEAM_MEMBERS: TeamMember[] = [
     name: 'Ms. Anjali',
     role: 'Teacher',
     category: 'Faculty',
-    imageUrl: '/assets/faculty/anjali.jpg?v=2',
+    imageUrl: ANJALI_PHOTO_DATA,
     description: 'Dedicated mathematics educator demystifying numbers, cultivating logical reasoning, mental math agility, and real-world problem-solving.',
     qualifications: 'B.Sc. (Mathematics), B.Ed.',
     subjects: ['Mathematics', 'Mental Math', 'Logical Reasoning']
@@ -162,7 +169,7 @@ export const TEAM_MEMBERS: TeamMember[] = [
     name: 'Ms. Neha',
     role: 'Teacher',
     category: 'Faculty',
-    imageUrl: '/assets/faculty/neha.jpg?v=2',
+    imageUrl: NEHA_PHOTO_DATA,
     description: 'Integrating environmental awareness with foundational digital literacy, teaching students respect for nature alongside computer fundamentals and IT skills.',
     qualifications: 'B.C.A., B.Ed.',
     subjects: ['EVS & Computer', 'Environmental Studies', 'Computer Fundamentals']
@@ -172,7 +179,7 @@ export const TEAM_MEMBERS: TeamMember[] = [
     name: 'Ms. Geeta',
     role: 'Teacher',
     category: 'Faculty',
-    imageUrl: '/assets/faculty/geeta.jpg?v=2',
+    imageUrl: GEETA_PHOTO_DATA,
     description: 'Guiding UKG learners through foundational early childhood literacy, systematic phonics, speech clarity, and joyous expressive learning.',
     qualifications: 'N.T.T., B.A., Early Childhood Education Specialist',
     subjects: ['UKG', 'Early Childhood Literacy', 'Phonics']
@@ -182,7 +189,7 @@ export const TEAM_MEMBERS: TeamMember[] = [
     name: 'Ms. Pavitra',
     role: 'Teacher',
     category: 'Faculty',
-    imageUrl: '/assets/faculty/pavitra.jpg?v=2',
+    imageUrl: PAVITRA_PHOTO_DATA,
     description: 'Dedicated early childhood educator cultivating foundational literacy, joyful vocabulary building, storytelling confidence, and phonics mastery.',
     qualifications: 'N.T.T., B.A., Early Childhood Education Certified',
     subjects: ['Early Childhood Literacy', 'Phonics & Vocabulary', 'Creative Storytelling']

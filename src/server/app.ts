@@ -1,5 +1,6 @@
 import express from 'express';
 import nodemailer from 'nodemailer';
+import { google } from 'googleapis';
 import { getSql, checkDbConnection, initializeDatabase, isDatabaseConfigured } from './db.js';
 import { GRADE_FEE_STRUCTURES } from '../data/schoolData.js';
 
@@ -706,66 +707,347 @@ app.post('/api/admin/login', async (req, res) => {
   });
 });
 
-// Helper to dispatch live emails via Gmail SMTP if configured
-async function sendRealGmailOtp(targetEmail: string, otp: string): Promise<{ sent: boolean; method: string; info?: string; error?: string }> {
+// Helper to build RFC 2822 encoded raw email string for Google Gmail API
+function buildRawEmail({
+  from,
+  to,
+  subject,
+  html,
+}: {
+  from: string;
+  to: string;
+  subject: string;
+  html: string;
+}): string {
+  const utf8Subject = `=?utf-8?B?${Buffer.from(subject).toString('base64')}?=`;
+  const messageParts = [
+    `From: ${from}`,
+    `To: ${to}`,
+    `Subject: ${utf8Subject}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/html; charset=utf-8',
+    '',
+    html.trim(),
+  ];
+  return Buffer.from(messageParts.join('\r\n'))
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+// Dispatch live emails using Google OAuth2 (googleapis REST API)
+async function sendGmailWithOAuth2(
+  targetEmail: string,
+  otp: string,
+  gmailUser: string,
+  clientId: string,
+  clientSecret: string,
+  refreshToken: string
+): Promise<{ sent: boolean; method: string; info?: string }> {
+  console.log(`[OAuth2 Dispatcher] 🔑 Attempting Google OAuth2 REST dispatch to ${targetEmail} via googleapis...`);
+
+  const oauth2Client = new google.auth.OAuth2(
+    clientId,
+    clientSecret,
+    'https://developers.google.com/oauthplayground'
+  );
+
+  oauth2Client.setCredentials({ refresh_token: refreshToken });
+
+  // Test and refresh access token explicitly
+  const tokenRes = await oauth2Client.getAccessToken();
+  if (!tokenRes || !tokenRes.token) {
+    throw new Error('Failed to obtain a valid access token using the provided Google OAuth2 refresh_token.');
+  }
+
+  console.log('[OAuth2 Dispatcher] ✅ Google OAuth2 access token verified and refreshed successfully.');
+
+  const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+  const raw = buildRawEmail({
+    from: `"Disney World Public School" <${gmailUser}>`,
+    to: targetEmail,
+    subject: `[DWPS Security] Admin Password Reset OTP: ${otp}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <h2 style="color: #021936; margin: 0; font-family: serif;">Disney World Public School</h2>
+          <p style="color: #904d00; font-weight: bold; margin: 4px 0 0 0; font-size: 13px;">Subhash Colony, Ballabgarh • Admin Suite Security</p>
+        </div>
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+        <p style="font-size: 14px; color: #334155; line-height: 1.5;">Hello School Administrator,</p>
+        <p style="font-size: 14px; color: #334155; line-height: 1.5;">A password reset verification was requested for your institutional administrator account.</p>
+        <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0;">
+          <span style="font-size: 12px; color: #64748b; display: block; margin-bottom: 6px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">One-Time Security Code (OTP)</span>
+          <span style="font-size: 34px; font-weight: 800; color: #021936; letter-spacing: 6px; font-family: monospace;">${otp}</span>
+        </div>
+        <p style="font-size: 13px; color: #64748b; line-height: 1.5;">This code will expire in <b>10 minutes</b>. You can also use emergency master passcode <b>123456</b> if needed.</p>
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+        <p style="font-size: 11px; color: #94a3b8; text-align: center; margin: 0;">Disney World Public School • 1008, Gali no-11, Subhash Colony, Ballabgarh, Faridabad - 121004</p>
+      </div>
+    `,
+  });
+
+  const sendRes = await gmail.users.messages.send({
+    userId: 'me',
+    requestBody: { raw },
+  });
+
+  console.log(`[OAuth2 Dispatcher] 🚀 Email delivered successfully via Google OAuth2 REST API! Message ID: ${sendRes.data.id}`);
+  return {
+    sent: true,
+    method: 'googleapis-oauth2',
+    info: sendRes.data.id || undefined,
+  };
+}
+
+// Helper to dispatch live emails via Google OAuth2 (googleapis) with SMTP fallback and detailed error logging
+async function sendRealGmailOtp(targetEmail: string, otp: string): Promise<{
+  sent: boolean;
+  method: string;
+  info?: string;
+  error?: string;
+  errorCode?: string;
+  diagnostics?: Record<string, any>;
+}> {
   const gmailUser = (process.env.GMAIL_USER || 'dwpsballabgarh@gmail.com').trim();
+
+  // 1. Google OAuth2 credentials (Primary: avoids IP blocking on live domains)
+  const oauthClientId = (process.env.GMAIL_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || process.env.OAUTH_CLIENT_ID || '').trim();
+  const oauthClientSecret = (process.env.GMAIL_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET || process.env.OAUTH_CLIENT_SECRET || '').trim();
+  const oauthRefreshToken = (process.env.GMAIL_REFRESH_TOKEN || process.env.GOOGLE_REFRESH_TOKEN || process.env.OAUTH_REFRESH_TOKEN || '').trim();
+
+  const isOAuth2Configured = Boolean(oauthClientId && oauthClientSecret && oauthRefreshToken);
+
+  console.log(`[Email Dispatcher] 📧 Initiating OTP dispatch to ${targetEmail}...`);
+  console.log(`[Email Dispatcher] ⚙️ Auth Check: User="${gmailUser}", OAuth2 Configured=${isOAuth2Configured}, App Password Configured=${Boolean(process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS || process.env.EMAIL_PASS)}`);
+
+  if (isOAuth2Configured) {
+    try {
+      console.log('[Email Dispatcher] 🚀 Using Google OAuth2 via googleapis REST API (Bypasses SMTP port & Google IP security blocks)');
+      const oauthResult = await sendGmailWithOAuth2(
+        targetEmail,
+        otp,
+        gmailUser,
+        oauthClientId,
+        oauthClientSecret,
+        oauthRefreshToken
+      );
+      return {
+        sent: true,
+        method: 'googleapis-oauth2',
+        info: oauthResult.info,
+        diagnostics: {
+          authType: 'Google OAuth2 (googleapis REST API)',
+          user: gmailUser,
+          recipient: targetEmail,
+          verified: true,
+        },
+      };
+    } catch (oauthErr: any) {
+      console.error('[Email Dispatcher] ❌ Google OAuth2 dispatch failed:', oauthErr?.message || oauthErr);
+      // Fall through to SMTP fallback if available
+    }
+  }
+
+  // 2. SMTP App Password fallback (if OAuth2 is not configured or failed)
   const rawPass = process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS || process.env.EMAIL_PASS || '';
   const gmailAppPassword = rawPass.replace(/[\s-]+/g, ''); // strip spaces and hyphens
 
-  if (!gmailAppPassword) {
-    console.log(`[Email Dispatcher] GMAIL_APP_PASSWORD not set in environment on live host. Generated OTP ${otp} for ${targetEmail}.`);
+  if (gmailAppPassword) {
+    console.log('[Email Dispatcher] 🔄 Attempting SMTP fallback transport...');
+
+    // Configurations to test: Primary SSL (Port 465) and Fallback STARTTLS (Port 587)
+    const configs = [
+      {
+        name: 'Gmail SSL Direct (Port 465)',
+        transportOpts: {
+          host: 'smtp.gmail.com',
+          port: 465,
+          secure: true,
+          auth: {
+            user: gmailUser,
+            pass: gmailAppPassword,
+          },
+          connectionTimeout: 10000,
+          greetingTimeout: 10000,
+          socketTimeout: 15000,
+        }
+      },
+      {
+        name: 'Gmail STARTTLS (Port 587)',
+        transportOpts: {
+          host: 'smtp.gmail.com',
+          port: 587,
+          secure: false,
+          requireTLS: true,
+          auth: {
+            user: gmailUser,
+            pass: gmailAppPassword,
+          },
+          connectionTimeout: 10000,
+          greetingTimeout: 10000,
+          socketTimeout: 15000,
+        }
+      }
+    ];
+
+    let lastError: any = null;
+    const attemptedDiagnostics: any[] = [];
+
+    for (const cfg of configs) {
+      console.log(`[Email Dispatcher] 🔌 Testing SMTP connection via ${cfg.name}...`);
+      const transporter = nodemailer.createTransport(cfg.transportOpts);
+
+      try {
+        await transporter.verify();
+        console.log(`[Email Dispatcher] ✅ Connection & Authentication verified successfully via ${cfg.name}!`);
+
+        const mailOptions = {
+          from: `"Disney World Public School" <${gmailUser}>`,
+          to: targetEmail,
+          subject: `[DWPS Security] Admin Password Reset OTP: ${otp}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
+              <div style="text-align: center; margin-bottom: 20px;">
+                <h2 style="color: #021936; margin: 0; font-family: serif;">Disney World Public School</h2>
+                <p style="color: #904d00; font-weight: bold; margin: 4px 0 0 0; font-size: 13px;">Subhash Colony, Ballabgarh • Admin Suite Security</p>
+              </div>
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+              <p style="font-size: 14px; color: #334155; line-height: 1.5;">Hello School Administrator,</p>
+              <p style="font-size: 14px; color: #334155; line-height: 1.5;">A password reset verification was requested for your institutional administrator account.</p>
+              <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0;">
+                <span style="font-size: 12px; color: #64748b; display: block; margin-bottom: 6px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">One-Time Security Code (OTP)</span>
+                <span style="font-size: 34px; font-weight: 800; color: #021936; letter-spacing: 6px; font-family: monospace;">${otp}</span>
+              </div>
+              <p style="font-size: 13px; color: #64748b; line-height: 1.5;">This code will expire in <b>10 minutes</b>. You can also use emergency master passcode <b>123456</b> if needed.</p>
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+              <p style="font-size: 11px; color: #94a3b8; text-align: center; margin: 0;">Disney World Public School • 1008, Gali no-11, Subhash Colony, Ballabgarh, Faridabad - 121004</p>
+            </div>
+          `,
+        };
+
+        const result = await transporter.sendMail(mailOptions);
+        console.log(`[Email Dispatcher] 🚀 Email delivered successfully via ${cfg.name} to ${targetEmail}. MessageId: ${result.messageId}`);
+        return {
+          sent: true,
+          method: cfg.name,
+          info: result.messageId,
+          diagnostics: {
+            usedConfig: cfg.name,
+            recipient: targetEmail,
+            verified: true
+          }
+        };
+      } catch (err: any) {
+        lastError = err;
+        attemptedDiagnostics.push({
+          config: cfg.name,
+          errorCode: err?.code || 'UNKNOWN',
+          responseCode: err?.responseCode,
+          message: err?.message,
+        });
+        console.error(`[Email Dispatcher] ❌ Connection error on ${cfg.name}:`, err?.message);
+      }
+    }
+
     return {
       sent: false,
-      method: 'simulated',
-      info: 'To deliver live emails to your Gmail inbox, set GMAIL_APP_PASSWORD in your environment (.env).'
+      method: 'smtp-fallback-failed',
+      error: lastError?.message || 'Failed to connect to Gmail SMTP.',
+      errorCode: lastError?.code || 'SMTP_CONNECTION_ERROR',
+      diagnostics: {
+        attempts: attemptedDiagnostics,
+        recommendation: 'Configure Google OAuth2 with googleapis to bypass SMTP security blocks.'
+      }
     };
   }
 
-  try {
-    const transporter = nodemailer.createTransport({
+  // 3. No credentials set
+  const errorMsg = 'Neither Google OAuth2 credentials nor GMAIL_APP_PASSWORD are set in server environment variables (.env).';
+  console.warn(`[Email Dispatcher] ⚠️ ${errorMsg}`);
+  return {
+    sent: false,
+    method: 'simulated',
+    info: 'Configure Google OAuth2 (GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN) in your environment (.env).',
+    error: errorMsg,
+    errorCode: 'MISSING_CREDENTIALS',
+    diagnostics: {
+      gmailUser,
+      oauthConfigured: false,
+      smtpConfigured: false,
+      recommendedAction: 'Add GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REFRESH_TOKEN to server hosting environment (.env)'
+    }
+  };
+}
+
+// Dedicated endpoint to test and verify email authentication (Google OAuth2 + SMTP) directly on live domain
+app.all(['/api/admin/verify-smtp', '/api/admin/verify-email-auth'], async (_req, res) => {
+  const gmailUser = (process.env.GMAIL_USER || 'dwpsballabgarh@gmail.com').trim();
+  const oauthClientId = (process.env.GMAIL_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || process.env.OAUTH_CLIENT_ID || '').trim();
+  const oauthClientSecret = (process.env.GMAIL_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET || process.env.OAUTH_CLIENT_SECRET || '').trim();
+  const oauthRefreshToken = (process.env.GMAIL_REFRESH_TOKEN || process.env.GOOGLE_REFRESH_TOKEN || process.env.OAUTH_REFRESH_TOKEN || '').trim();
+
+  const rawPass = process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS || process.env.EMAIL_PASS || '';
+  const gmailAppPassword = rawPass.replace(/[\s-]+/g, '');
+
+  const results: any = {
+    user: gmailUser,
+    oauth2: {
+      configured: Boolean(oauthClientId && oauthClientSecret && oauthRefreshToken),
+      hasClientId: Boolean(oauthClientId),
+      hasClientSecret: Boolean(oauthClientSecret),
+      hasRefreshToken: Boolean(oauthRefreshToken),
+    },
+    smtp: {
+      configured: Boolean(gmailAppPassword),
+      appPasswordLength: gmailAppPassword.length,
+      ports: {}
+    }
+  };
+
+  // Test OAuth2 with googleapis if credentials exist
+  if (results.oauth2.configured) {
+    try {
+      const oauth2Client = new google.auth.OAuth2(
+        oauthClientId,
+        oauthClientSecret,
+        'https://developers.google.com/oauthplayground'
+      );
+      oauth2Client.setCredentials({ refresh_token: oauthRefreshToken });
+      const token = await oauth2Client.getAccessToken();
+      results.oauth2.tokenVerified = Boolean(token && token.token);
+      results.oauth2.status = 'AUTHENTICATED_AND_READY';
+      results.oauth2.message = 'Google OAuth2 REST API is active and successfully authenticated with googleapis!';
+    } catch (err: any) {
+      results.oauth2.tokenVerified = false;
+      results.oauth2.status = 'OAUTH_VERIFICATION_FAILED';
+      results.oauth2.error = err?.message;
+    }
+  }
+
+  // Test SMTP if password configured
+  if (results.smtp.configured) {
+    const testTransporter465 = nodemailer.createTransport({
       host: 'smtp.gmail.com',
       port: 465,
       secure: true,
-      auth: {
-        user: gmailUser,
-        pass: gmailAppPassword,
-      },
-      connectionTimeout: 15000,
-      greetingTimeout: 15000,
+      auth: { user: gmailUser, pass: gmailAppPassword },
+      connectionTimeout: 8000,
     });
-
-    const mailOptions = {
-      from: `"Disney World Public School" <${gmailUser}>`,
-      to: targetEmail,
-      subject: `[DWPS Security] Admin Password Reset OTP: ${otp}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
-          <div style="text-align: center; margin-bottom: 20px;">
-            <h2 style="color: #021936; margin: 0; font-family: serif;">Disney World Public School</h2>
-            <p style="color: #904d00; font-weight: bold; margin: 4px 0 0 0; font-size: 13px;">Subhash Colony, Ballabgarh • Admin Suite Security</p>
-          </div>
-          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-          <p style="font-size: 14px; color: #334155; line-height: 1.5;">Hello School Administrator,</p>
-          <p style="font-size: 14px; color: #334155; line-height: 1.5;">A password reset verification was requested for your institutional administrator account.</p>
-          <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0;">
-            <span style="font-size: 12px; color: #64748b; display: block; margin-bottom: 6px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">One-Time Security Code (OTP)</span>
-            <span style="font-size: 34px; font-weight: 800; color: #021936; letter-spacing: 6px; font-family: monospace;">${otp}</span>
-          </div>
-          <p style="font-size: 13px; color: #64748b; line-height: 1.5;">This code will expire in <b>10 minutes</b>. You can also use the emergency master passcode <b>123456</b> if needed.</p>
-          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-          <p style="font-size: 11px; color: #94a3b8; text-align: center; margin: 0;">Disney World Public School • 1008, Gali no-11, Subhash Colony, Ballabgarh, Faridabad - 121004</p>
-        </div>
-      `,
-    };
-
-    const result = await transporter.sendMail(mailOptions);
-    console.log(`[Email Dispatcher] ✅ Real email successfully sent via Gmail to ${targetEmail}. MessageId: ${result.messageId}`);
-    return { sent: true, method: 'gmail-smtp', info: result.messageId };
-  } catch (err: any) {
-    console.error(`[Email Dispatcher] ❌ Failed to dispatch email via Gmail SMTP:`, err);
-    return { sent: false, method: 'error', error: err?.message };
+    try {
+      await testTransporter465.verify();
+      results.smtp.ports['port_465_ssl'] = { ok: true, message: 'Connected & Authenticated successfully' };
+    } catch (err: any) {
+      results.smtp.ports['port_465_ssl'] = { ok: false, code: err?.code, message: err?.message };
+    }
   }
-}
+
+  results.readyToSend = results.oauth2.tokenVerified || results.smtp.ports?.['port_465_ssl']?.ok;
+  results.recommendedMethod = results.oauth2.configured ? 'Google OAuth2 (googleapis)' : 'SMTP App Password';
+
+  return res.json(results);
+});
 
 // 5c. Forgot Password - Request Recovery OTP via official Gmail dwpsballabgarh@gmail.com
 app.post('/api/admin/request-password-reset', async (req, res) => {
@@ -851,9 +1133,18 @@ app.post('/api/admin/request-password-reset', async (req, res) => {
     success: true,
     message: emailResult.sent
       ? `Verification code has been delivered directly to real Gmail: ${targetEmail}!`
-      : `Verification code generated for ${targetEmail}. (SMTP not configured on server).`,
+      : `Verification code generated for ${targetEmail}. ${emailResult.error || 'SMTP delivery pending.'}`,
     realEmailSent: emailResult.sent,
-    smtpConfigured: Boolean(process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS || process.env.EMAIL_PASS),
+    emailMethod: emailResult.method,
+    authConfigured: Boolean(
+      (process.env.GMAIL_CLIENT_ID && process.env.GMAIL_REFRESH_TOKEN) ||
+      (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_REFRESH_TOKEN) ||
+      process.env.GMAIL_APP_PASSWORD ||
+      process.env.GMAIL_PASS
+    ),
+    emailError: emailResult.error,
+    emailErrorCode: emailResult.errorCode,
+    diagnostics: emailResult.diagnostics,
     otp, // Returned for instant testing and UI preview
     sentToEmail: targetEmail,
     emailMasked: targetEmail,
