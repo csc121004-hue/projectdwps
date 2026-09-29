@@ -27,7 +27,8 @@ export const EXPECTED_TABLES = [
   'dwps_newsletters',
   'dwps_announcements',
   'dwps_newsletter_subscribers',
-  'dwps_fee_structures'
+  'dwps_fee_structures',
+  'dwps_admin_users'
 ];
 
 export const findDatabaseUrl = (): { url: string | null; detectedKey: string | null; availableEnvKeys: string[] } => {
@@ -529,6 +530,37 @@ export async function initializeDatabase(): Promise<{ success: boolean; message:
         ON CONFLICT (id) DO NOTHING;
       `;
       log('[NeonDB] ✓ Seeded 1 sample inquiry into dwps_inquiries.');
+    }
+
+    // 7. Institutional Administrator Accounts table
+    await sql`
+      CREATE TABLE IF NOT EXISTS dwps_admin_users (
+        id VARCHAR(64) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        user_id VARCHAR(100) NOT NULL UNIQUE,
+        mobile VARCHAR(50) NOT NULL,
+        designation VARCHAR(150) NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        role VARCHAR(50) DEFAULT 'Administrator',
+        status VARCHAR(20) DEFAULT 'Active',
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+    log('[NeonDB] ✓ Table verified/created: dwps_admin_users');
+
+    // Seed default admin users if empty
+    const userCount = await sql`SELECT COUNT(*)::int as count FROM dwps_admin_users`;
+    if ((userCount[0]?.count || 0) === 0) {
+      log('[NeonDB] 🌿 Seeding default administrator accounts into dwps_admin_users...');
+      await sql`
+        INSERT INTO dwps_admin_users (id, name, email, user_id, mobile, designation, password, role, status)
+        VALUES 
+          ('user-admin-1', 'DWPS Ballabgarh Administration', 'dwpsballabgarh@gmail.com', 'dwpsballabgarh', '+91 97170 82348', 'Institutional Head Office & Reception', 'dwps2026', 'Official School Administrator', 'Active'),
+          ('user-admin-2', 'Mr. Rahul Chaudhary', 'rahul@dwpsballabgarh.org', 'rahul@dwpsballabgarh.org', '+91 97170 82348', 'Founder & School Director', 'dwps2026', 'Executive Director', 'Active')
+        ON CONFLICT (id) DO NOTHING;
+      `;
+      log('[NeonDB] ✓ Seeded default administrator accounts.');
     }
 
     // Retrieve verified list of tables in public schema

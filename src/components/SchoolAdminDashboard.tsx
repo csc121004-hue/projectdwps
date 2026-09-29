@@ -11,7 +11,7 @@ import { SchoolLogo } from './SchoolLogo';
 import { AnnouncementsManager } from './AnnouncementsManager';
 import { NeonDbStatusModal } from './NeonDbStatusModal';
 import { FeeManager } from './FeeManager';
-import { api } from '../services/api';
+import { api, InstitutionalUser } from '../services/api';
 import {
   PeriodicBackupModal,
   BackupSettings,
@@ -48,7 +48,7 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
   onLogout,
   onBackToWebsite,
 }) => {
-  const [activeTab, setActiveTab] = useState<'inquiries' | 'fees' | 'announcements' | 'newsletters'>('inquiries');
+  const [activeTab, setActiveTab] = useState<'inquiries' | 'fees' | 'announcements' | 'newsletters' | 'accounts'>('inquiries');
 
   // Inquiries Filters
   const [inquirySearch, setInquirySearch] = useState('');
@@ -124,6 +124,127 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
     pdfDownloadUrl: '#',
     tags: ['Academic News', 'DWPS Ballabgarh']
   });
+
+  // User Management State (Name, User Email ID, User ID, Mobile No, Designation)
+  const [adminUsers, setAdminUsers] = useState<InstitutionalUser[]>([]);
+  const [isCreateUserModalOpen, setIsCreateUserModalOpen] = useState(false);
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserId, setNewUserId] = useState('');
+  const [newUserMobile, setNewUserMobile] = useState('');
+  const [newUserDesignation, setNewUserDesignation] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('dwps2026');
+  const [newUserRole, setNewUserRole] = useState('Administrator');
+  const [showNewUserPassword, setShowNewUserPassword] = useState(false);
+  const [createUserError, setCreateUserError] = useState('');
+  const [createUserSuccess, setCreateUserSuccess] = useState('');
+  const [isSubmittingUser, setIsSubmittingUser] = useState(false);
+
+  useEffect(() => {
+    loadAdminUsers();
+  }, []);
+
+  const loadAdminUsers = async () => {
+    const users = await api.getAdminUsers();
+    if (users && users.length > 0) {
+      setAdminUsers(users);
+    } else {
+      setAdminUsers([
+        {
+          id: 'user-admin-1',
+          name: 'DWPS Ballabgarh Administration',
+          email: 'dwpsballabgarh@gmail.com',
+          userId: 'dwpsballabgarh',
+          mobile: '+91 97170 82348',
+          designation: 'Institutional Head Office & Reception',
+          role: 'Official School Administrator',
+          status: 'Active'
+        },
+        {
+          id: 'user-admin-2',
+          name: 'Mr. Rahul Chaudhary',
+          email: 'rahul@dwpsballabgarh.org',
+          userId: 'rahul@dwpsballabgarh.org',
+          mobile: '+91 97170 82348',
+          designation: 'Founder & School Director',
+          role: 'Executive Director',
+          status: 'Active'
+        }
+      ]);
+    }
+  };
+
+  const isSuperAdmin = (currentUser.email || '').trim().toLowerCase() === 'dwpsballabgarh@gmail.com';
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateUserError('');
+    setCreateUserSuccess('');
+
+    if (!isSuperAdmin) {
+      setCreateUserError('Access Denied: Only user dwpsballabgarh@gmail.com is authorized to create new user accounts.');
+      return;
+    }
+
+    if (
+      !newUserName.trim() ||
+      !newUserEmail.trim() ||
+      !newUserId.trim() ||
+      !newUserMobile.trim() ||
+      !newUserDesignation.trim()
+    ) {
+      setCreateUserError('All 5 fields (Name, User Email ID, User ID, Mobile No, Designation) are mandatory.');
+      return;
+    }
+
+    setIsSubmittingUser(true);
+    const res = await api.createAdminUser(
+      {
+        name: newUserName.trim(),
+        email: newUserEmail.trim(),
+        userId: newUserId.trim().toLowerCase(),
+        mobile: newUserMobile.trim(),
+        designation: newUserDesignation.trim(),
+        password: newUserPassword.trim() || 'dwps2026',
+        role: newUserRole
+      },
+      currentUser.email
+    );
+
+    setIsSubmittingUser(false);
+    if (res.success && res.user) {
+      setAdminUsers(prev => [...prev, res.user!]);
+      setCreateUserSuccess(`User ID "${res.user.userId}" created successfully for ${res.user.name}!`);
+      setTimeout(() => {
+        setNewUserName('');
+        setNewUserEmail('');
+        setNewUserId('');
+        setNewUserMobile('');
+        setNewUserDesignation('');
+        setNewUserPassword('dwps2026');
+        setIsCreateUserModalOpen(false);
+        setCreateUserSuccess('');
+      }, 1200);
+    } else {
+      setCreateUserError(res.error || 'Failed to create user ID. Please check details and try again.');
+    }
+  };
+
+  const handleDeleteUser = async (id: string, name: string) => {
+    if (!isSuperAdmin) {
+      alert('Access Denied: Only user dwpsballabgarh@gmail.com is authorized to delete user accounts.');
+      return;
+    }
+    if (!window.confirm(`Are you sure you want to remove user access for "${name}"?`)) {
+      return;
+    }
+    const res = await api.deleteAdminUser(id, currentUser.email);
+    if (res.success) {
+      setAdminUsers(prev => prev.filter(u => u.id !== id));
+    } else {
+      alert(res.error || 'Failed to remove user account.');
+    }
+  };
 
   // --- Inquiries Handlers ---
   const handleStatusChange = (id: string, newStatus: InquiryRecord['status']) => {
@@ -499,8 +620,12 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
       {/* Top Administration Nav Header */}
       <header className="bg-[#021936] text-white border-b border-[#1a2e4c] sticky top-0 z-40 shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-xl bg-white p-1 flex items-center justify-center shadow-xs">
+          <div
+            onClick={onBackToWebsite}
+            className="flex items-center gap-3.5 cursor-pointer group"
+            title="Click to view live school website"
+          >
+            <div className="w-12 h-12 rounded-xl bg-white p-1 flex items-center justify-center shadow-xs transition-transform group-hover:scale-105">
               <img
                 src="/assets/dwps_logo.svg"
                 alt="DWPS Crest"
@@ -509,7 +634,7 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-base sm:text-lg font-bold font-serif text-white tracking-tight">
+                <span className="text-base sm:text-lg font-bold font-serif text-white tracking-tight group-hover:text-amber-300 transition-colors">
                   Disney World Public School
                 </span>
                 <span className="px-2 py-0.5 rounded-full bg-[#904d00] text-white text-[10px] font-bold uppercase tracking-wider">
@@ -526,11 +651,7 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
             {/* Neon DB Cloud Connection Status Capsule */}
             <button
               onClick={() => setIsDbModalOpen(true)}
-              className={`py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center gap-2 border transition-all cursor-pointer shadow-xs ${
-                dbHealth?.ok
-                  ? 'bg-[#003829] hover:bg-[#004d38] text-[#00E699] border-emerald-500/50'
-                  : 'bg-white/10 hover:bg-white/20 text-slate-200 border-white/10'
-              }`}
+              className="hidden"
               title="Neon Database Connection Status & Deployment Guide"
             >
               <span className="relative flex h-2 w-2">
@@ -554,11 +675,7 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
             {/* Auto-Backup Status Capsule */}
             <button
               onClick={() => setIsBackupModalOpen(true)}
-              className={`py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center gap-2 border transition-all cursor-pointer shadow-xs ${
-                backupSettings.enabled
-                  ? 'bg-[#1a2e4c] hover:bg-[#253d63] text-white border-emerald-500/40'
-                  : 'bg-white/10 hover:bg-white/20 text-slate-300 border-white/10'
-              }`}
+              className="hidden"
               title="Open Periodic Data Backup & Archive Center"
             >
               <span className="relative flex h-2 w-2">
@@ -596,7 +713,7 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
 
             <button
               onClick={onBackToWebsite}
-              className="py-2 px-3.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="hidden"
             >
               <span className="material-symbols-outlined text-base">public</span>
               <span className="hidden sm:inline">View Live Website</span>
@@ -670,6 +787,21 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
             <span>Live Newsletter &amp; Bulletins Manager</span>
             <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-mono font-bold">
               {newsletters.filter((n) => n.isLive).length} Live
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('accounts')}
+            className={`py-3 px-4 text-xs font-bold transition-all border-b-2 cursor-pointer flex items-center gap-2 ${
+              activeTab === 'accounts'
+                ? 'border-[#fe932c] text-[#fe932c]'
+                : 'border-transparent text-[#8396b9] hover:text-white'
+            }`}
+          >
+            <span className="material-symbols-outlined text-lg">manage_accounts</span>
+            <span>Admin Users &amp; Access</span>
+            <span className="px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 text-[10px] font-mono font-bold">
+              dwpsballabgarh@gmail.com
             </span>
           </button>
         </div>
@@ -1224,6 +1356,188 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* ===================== TAB 5: AUTHORIZED INSTITUTIONAL USERS & ACCESS ===================== */}
+        {activeTab === 'accounts' && (
+          <div className="space-y-6 animate-fadeIn">
+            {/* Header Card */}
+            <div className="bg-white p-6 rounded-2xl border border-[#dce3ec] custom-shadow-card flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-bold uppercase tracking-wider">
+                    ● Role-Based Access Control (RBAC)
+                  </span>
+                  <span className="text-xs text-slate-500">
+                    Authorized staff and administration access registry
+                  </span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-bold font-serif text-[#021936] mt-1">
+                  Institutional Administrator Accounts
+                </h3>
+              </div>
+
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-2 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
+                  <span className="material-symbols-outlined text-base text-emerald-600">verified_user</span>
+                  <span>{adminUsers.length} Authorized Accounts</span>
+                </div>
+                {isSuperAdmin ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCreateUserModalOpen(true);
+                      setCreateUserError('');
+                      setCreateUserSuccess('');
+                    }}
+                    className="px-4 py-2 bg-[#904d00] hover:bg-[#B45309] text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-base">person_add</span>
+                    <span>+ Create User ID</span>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs font-semibold">
+                    <span className="material-symbols-outlined text-sm text-amber-700">lock</span>
+                    <span>User creation restricted to dwpsballabgarh@gmail.com</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* User Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {adminUsers.map((user) => {
+                const isOfficialGmail =
+                  user.email.toLowerCase() === 'dwpsballabgarh@gmail.com' ||
+                  user.userId.toLowerCase() === 'dwpsballabgarh';
+                const isDirector =
+                  user.email.toLowerCase() === 'rahul@dwpsballabgarh.org' ||
+                  user.userId.toLowerCase().includes('rahul');
+                const isCurrentSession =
+                  currentUser.email.toLowerCase() === user.email.toLowerCase() ||
+                  currentUser.email.toLowerCase() === user.userId.toLowerCase();
+
+                return (
+                  <div
+                    key={user.id || user.userId}
+                    className={`bg-white rounded-2xl border ${
+                      isOfficialGmail
+                        ? 'border-2 border-red-200/90'
+                        : isDirector
+                        ? 'border-2 border-blue-200/90'
+                        : 'border-[#dce3ec]'
+                    } p-6 space-y-4 shadow-sm relative overflow-hidden transition-all hover:shadow-md`}
+                  >
+                    <div
+                      className={`absolute top-0 right-0 ${
+                        isOfficialGmail
+                          ? 'bg-red-600'
+                          : isDirector
+                          ? 'bg-[#021936]'
+                          : 'bg-[#904d00]'
+                      } text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl uppercase tracking-wider`}
+                    >
+                      {user.role || user.designation}
+                    </div>
+
+                    <div className="flex items-start gap-4">
+                      <div
+                        className={`w-14 h-14 rounded-2xl ${
+                          isOfficialGmail
+                            ? 'bg-red-50 text-red-600 border border-red-200'
+                            : isDirector
+                            ? 'bg-[#021936] text-[#FDE68A]'
+                            : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        } flex items-center justify-center shrink-0 shadow-xs`}
+                      >
+                        <span className="material-symbols-outlined text-3xl">
+                          {isOfficialGmail ? 'mail' : isDirector ? 'shield_person' : 'person'}
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-base font-bold text-[#021936]">
+                            {user.name}
+                          </h4>
+                          {isCurrentSession && (
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                              Current Session
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-slate-100 text-[#021936] border border-slate-200">
+                            User ID: {user.userId}
+                          </span>
+                        </div>
+                        <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700">
+                          Role: {user.role || 'Administrator'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-50 rounded-xl p-3.5 space-y-2 border border-slate-200/80 text-xs">
+                      <div className="flex items-center justify-between text-slate-600">
+                        <span>Designation:</span>
+                        <strong className="text-[#021936]">{user.designation}</strong>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-600">
+                        <span>User Email ID:</span>
+                        <span className="font-mono text-slate-800 font-semibold">{user.email}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-600">
+                        <span>Mobile No:</span>
+                        <strong className="font-mono text-slate-800">{user.mobile}</strong>
+                      </div>
+                      <div className="flex items-center justify-between text-slate-600">
+                        <span>Account Status:</span>
+                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-bold rounded text-[10px] flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span> {user.status || 'Active'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px]">
+                      <div className="flex items-center gap-1.5 text-slate-500">
+                        <span className="material-symbols-outlined text-sm text-emerald-600">verified</span>
+                        <span>Institutional Portal Authorized</span>
+                      </div>
+                      {isSuperAdmin && !isOfficialGmail && !isDirector && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteUser(user.id, user.name)}
+                          className="text-red-600 hover:text-red-800 font-bold hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-xs">delete</span>
+                          <span>Remove User</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Security Audit & Recovery Guidelines */}
+            <div className="bg-[#F2F8FD] p-5 rounded-2xl border border-[#dce3ec] flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-900 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-xl">security</span>
+                </div>
+                <div>
+                  <h5 className="text-xs font-bold text-[#021936]">
+                    Institutional Security &amp; OTP Routing Policy
+                  </h5>
+                  <p className="text-[11px] text-slate-600">
+                    All password recovery OTPs and administrative alert dispatches are routed to <strong className="text-red-700">dwpsballabgarh@gmail.com</strong>.
+                  </p>
+                </div>
+              </div>
+              <div className="text-[11px] font-mono text-slate-500 bg-white px-3 py-1.5 rounded-lg border border-[#dce3ec] shrink-0">
+                Support: info@dwpsballabgarh.com
+              </div>
             </div>
           </div>
         )}
@@ -1789,6 +2103,258 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
         isOpen={isDbModalOpen}
         onClose={() => setIsDbModalOpen(false)}
       />
+
+      {/* --- MODAL 7: CREATE INSTITUTIONAL USER ID MODAL --- */}
+      {isCreateUserModalOpen && isSuperAdmin && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn"
+          onClick={() => setIsCreateUserModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-[#dce3ec]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-[#021936] text-white p-6 relative">
+              <button
+                type="button"
+                onClick={() => setIsCreateUserModalOpen(false)}
+                className="absolute top-4 right-4 text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-[#904d00] text-white flex items-center justify-center shrink-0 shadow-md">
+                  <span className="material-symbols-outlined text-2xl">person_add</span>
+                </div>
+                <div>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-[#904d00] text-white inline-block">
+                    Staff &amp; Admin Registry
+                  </span>
+                  <h3 className="text-xl font-bold font-serif text-white mt-0.5">
+                    Create New User ID
+                  </h3>
+                  <p className="text-xs text-[#8396b9]">
+                    Register authorized institutional staff credentials
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleCreateUser} className="p-6 space-y-4">
+              {createUserError && (
+                <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2 animate-fadeIn">
+                  <span className="material-symbols-outlined text-base shrink-0">error</span>
+                  <span>{createUserError}</span>
+                </div>
+              )}
+
+              {createUserSuccess && (
+                <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 animate-fadeIn">
+                  <span className="material-symbols-outlined text-base shrink-0 text-emerald-600">check_circle</span>
+                  <span>{createUserSuccess}</span>
+                </div>
+              )}
+
+              {/* 1. Name */}
+              <div>
+                <label className="block text-xs font-bold text-[#021936] uppercase tracking-wider mb-1">
+                  Full Name <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
+                    person
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    value={newUserName}
+                    onChange={(e) => setNewUserName(e.target.value)}
+                    placeholder="e.g. Mrs. Sunita Sharma"
+                    className="w-full h-11 pl-10 pr-3 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-semibold text-[#021936] focus:border-[#904d00] focus:bg-white outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* 2. User Email ID */}
+              <div>
+                <label className="block text-xs font-bold text-[#021936] uppercase tracking-wider mb-1">
+                  User Email ID <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
+                    mail
+                  </span>
+                  <input
+                    type="email"
+                    required
+                    value={newUserEmail}
+                    onChange={(e) => setNewUserEmail(e.target.value)}
+                    placeholder="e.g. sunita@dwpsballabgarh.org"
+                    className="w-full h-11 pl-10 pr-3 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-semibold text-[#021936] focus:border-[#904d00] focus:bg-white outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* 3. User ID & Mobile No in 2 columns */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-[#021936] uppercase tracking-wider mb-1">
+                    User ID (Login ID) <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
+                      badge
+                    </span>
+                    <input
+                      type="text"
+                      required
+                      value={newUserId}
+                      onChange={(e) => setNewUserId(e.target.value.replace(/\s+/g, '').toLowerCase())}
+                      placeholder="e.g. sunita@dwps"
+                      className="w-full h-11 pl-10 pr-3 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-mono font-bold text-[#021936] focus:border-[#904d00] focus:bg-white outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#021936] uppercase tracking-wider mb-1">
+                    Mobile No <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
+                      call
+                    </span>
+                    <input
+                      type="tel"
+                      required
+                      value={newUserMobile}
+                      onChange={(e) => setNewUserMobile(e.target.value)}
+                      placeholder="+91 98111 22334"
+                      className="w-full h-11 pl-10 pr-3 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-semibold text-[#021936] focus:border-[#904d00] focus:bg-white outline-none transition-all"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Designation */}
+              <div>
+                <label className="block text-xs font-bold text-[#021936] uppercase tracking-wider mb-1">
+                  Designation <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
+                    work
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    value={newUserDesignation}
+                    onChange={(e) => setNewUserDesignation(e.target.value)}
+                    placeholder="e.g. Academic Coordinator / Vice Principal"
+                    className="w-full h-11 pl-10 pr-3 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-semibold text-[#021936] focus:border-[#904d00] focus:bg-white outline-none transition-all"
+                  />
+                </div>
+                {/* Suggestions */}
+                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                  <span className="text-[10px] text-slate-400 font-semibold">Quick pick:</span>
+                  {[
+                    'Vice Principal',
+                    'Academic Coordinator',
+                    'Admission Counselor',
+                    'Senior Accountant',
+                    'Front Desk Reception'
+                  ].map((desig) => (
+                    <button
+                      key={desig}
+                      type="button"
+                      onClick={() => setNewUserDesignation(desig)}
+                      className="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer"
+                    >
+                      {desig}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 5. Initial Password & Access Role */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                <div>
+                  <label className="block text-xs font-bold text-[#021936] uppercase tracking-wider mb-1">
+                    Initial Password
+                  </label>
+                  <div className="relative">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
+                      lock
+                    </span>
+                    <input
+                      type={showNewUserPassword ? 'text' : 'password'}
+                      value={newUserPassword}
+                      onChange={(e) => setNewUserPassword(e.target.value)}
+                      placeholder="dwps2026"
+                      className="w-full h-11 pl-10 pr-9 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-semibold text-[#021936] focus:border-[#904d00] focus:bg-white outline-none transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewUserPassword(!showNewUserPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-base">
+                        {showNewUserPassword ? 'visibility_off' : 'visibility'}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#021936] uppercase tracking-wider mb-1">
+                    Access Role
+                  </label>
+                  <select
+                    value={newUserRole}
+                    onChange={(e) => setNewUserRole(e.target.value)}
+                    className="w-full h-11 px-3 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-semibold text-[#021936] focus:border-[#904d00] focus:bg-white outline-none transition-all cursor-pointer"
+                  >
+                    <option value="Administrator">Administrator (Full Access)</option>
+                    <option value="Staff Executive">Staff Executive</option>
+                    <option value="Admission Desk">Admission Desk</option>
+                    <option value="Accounts Manager">Accounts Manager</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="pt-3 flex gap-3 border-t border-slate-100">
+                <button
+                  type="submit"
+                  disabled={isSubmittingUser}
+                  className="flex-1 py-3 bg-[#904d00] hover:bg-[#B45309] disabled:opacity-75 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {isSubmittingUser ? (
+                    <>
+                      <span className="material-symbols-outlined text-base animate-spin">refresh</span>
+                      <span>Creating User ID...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-base">person_add</span>
+                      <span>Create User ID &amp; Authorize</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsCreateUserModalOpen(false)}
+                  className="py-3 px-5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg cursor-pointer transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

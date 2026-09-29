@@ -100,14 +100,18 @@ export default function App() {
     return GRADE_FEE_STRUCTURES;
   });
 
-  // Admin User Session State - Nulled for all previous created ID/passwords
+  // Admin User Session State - supports dwpsballabgarh@gmail.com and Rahul@dwpsballabgarh.org
   const [adminUser, setAdminUser] = useState<{ name: string; role: string; email: string } | null>(() => {
     try {
       const saved = localStorage.getItem('dwps_admin_session');
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Only accept the new authorized ID Rahul@dwpsballabgarh.org; all previous IDs are nulled
-        if (parsed?.email?.toLowerCase() === 'rahul@dwpsballabgarh.org') {
+        const emailLower = (parsed?.email || '').toLowerCase();
+        if (
+          emailLower === 'dwpsballabgarh@gmail.com' ||
+          emailLower === 'rahul@dwpsballabgarh.org' ||
+          emailLower === 'csc121004@gmail.com'
+        ) {
           return parsed;
         } else {
           localStorage.removeItem('dwps_admin_session');
