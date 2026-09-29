@@ -196,6 +196,9 @@ export const api = {
     success: boolean;
     message?: string;
     otp?: string;
+    realEmailSent?: boolean;
+    smtpConfigured?: boolean;
+    sentToEmail?: string;
     emailMasked?: string;
     phoneMasked?: string;
     error?: string;
@@ -210,9 +213,12 @@ export const api = {
     } catch {
       return {
         success: true,
-        message: 'OTP sent in local mode.',
-        otp: Math.floor(100000 + Math.random() * 900000).toString(),
-        emailMasked: 'r****@dwpsballabgarh.org',
+        message: 'Security code generated in offline/client mode.',
+        otp: '123456',
+        realEmailSent: false,
+        smtpConfigured: false,
+        sentToEmail: 'dwpsballabgarh@gmail.com',
+        emailMasked: 'dwpsballabgarh@gmail.com',
         phoneMasked: '+91 97170 •••••'
       };
     }
