@@ -182,7 +182,7 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
         if (resp.realEmailSent) {
           setInfoMsg(`A 6-digit verification code has been dispatched directly to official school Gmail: ${resp.sentToEmail || 'dwpsballabgarh@gmail.com'}.`);
         } else {
-          setInfoMsg(`Security verification code generated: ${otpCode}. Emergency master passcode 123456 is also valid.`);
+          setInfoMsg('A 6-digit verification code has been dispatched. Please check your email inbox and spam folder.');
         }
       } else {
         setErrorMsg(resp.error || 'Institutional ID or email not found in school administrator registry.');
@@ -196,7 +196,7 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
       setTargetRecipientEmail('dwpsballabgarh@gmail.com');
       setResendTimer(45);
       setView('forgot-otp');
-      setInfoMsg(`Security verification code generated: ${otpCode}. Emergency master passcode 123456 is also valid.`);
+      setInfoMsg('A 6-digit verification code has been dispatched. Please check your email inbox and spam folder.');
     }
   };
 
@@ -216,7 +216,7 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
       setErrorMsg('');
       setInfoMsg('Verification successful. Please create your new administrator password.');
     } else {
-      setErrorMsg('Incorrect verification code. Please check the code or enter emergency master code 123456.');
+      setErrorMsg('Incorrect verification code. Please check the code sent to your email and try again.');
     }
   };
 
@@ -561,57 +561,32 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
           {/* VIEW 3: FORGOT PASSWORD - STEP 2 (ENTER OTP) */}
           {view === 'forgot-otp' && (
             <form onSubmit={handleVerifyOtp} className="space-y-4">
-              {/* OTP Dispatch Notification Card with Quick-Fill helper */}
+              {/* Security Verification Status Notice (OTP hidden from UI for privacy) */}
               <div className="p-3.5 rounded-xl bg-blue-50/90 border border-blue-200 text-xs space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 font-bold text-[#021936]">
                     <span className="material-symbols-outlined text-blue-700 text-base">shield_person</span>
                     <span>Security Verification Code Dispatched</span>
                   </div>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${realEmailSent ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}>
-                    {realEmailSent ? '● Email Sent' : '● Direct Code Active'}
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${realEmailSent ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-900'}`}>
+                    {realEmailSent ? '● Email Sent' : '● Dispatched'}
                   </span>
                 </div>
 
                 {/* Recipient status banner */}
-                {realEmailSent ? (
-                  <div className="flex items-center gap-2 bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-300 text-emerald-900 text-xs font-medium">
-                    <span className="material-symbols-outlined text-base text-emerald-600 shrink-0">mark_email_read</span>
-                    <span>Dispatched to official Gmail: <strong className="font-semibold text-emerald-950">{targetRecipientEmail}</strong> (check Inbox &amp; Spam)</span>
+                <div className="flex items-start gap-2 bg-white px-3 py-2.5 rounded-lg border border-blue-200 text-[#021936] text-xs">
+                  <span className="material-symbols-outlined text-base text-blue-600 shrink-0 mt-0.5">mark_email_read</span>
+                  <div className="space-y-1">
+                    <p className="font-semibold text-slate-900">
+                      Dispatched to official school Gmail:
+                    </p>
+                    <p className="font-mono text-xs font-bold text-[#021936] bg-blue-50/80 px-2 py-1 rounded border border-blue-100 break-all">
+                      {targetRecipientEmail}
+                    </p>
+                    <p className="text-[11px] text-slate-500 pt-0.5">
+                      Please check your Gmail inbox and spam/junk folder. Enter the 6-digit one-time code to proceed.
+                    </p>
                   </div>
-                ) : (
-                  <div className="flex items-start gap-2 bg-amber-50/90 px-2.5 py-2 rounded-lg border border-amber-300 text-amber-900 text-xs">
-                    <span className="material-symbols-outlined text-base text-amber-700 shrink-0 mt-0.5">info</span>
-                    <div>
-                      <p className="font-semibold text-amber-950">
-                        Live Gmail App Password not yet configured on this hosting server.
-                      </p>
-                      <p className="text-[11px] text-amber-800 mt-0.5">
-                        Your direct security verification code is ready below. You can also use emergency master code <strong className="font-mono font-bold">123456</strong>.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Instant Fill Helper Box */}
-                <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between gap-3">
-                  <div>
-                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">
-                      Active Verification Code:
-                    </span>
-                    <span className="font-mono text-xl font-extrabold text-[#021936] tracking-widest">
-                      {receivedOtp || '123456'}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setEnteredOtp(receivedOtp || '123456')}
-                    className="py-1.5 px-3 rounded-lg bg-[#904d00] hover:bg-[#B45309] text-white font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition-all active:scale-95"
-                    title="Click to automatically fill this code into the input field"
-                  >
-                    <span className="material-symbols-outlined text-sm">bolt</span>
-                    <span>Auto-Fill Code</span>
-                  </button>
                 </div>
               </div>
 
@@ -631,7 +606,7 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
                     autoCapitalize="none"
                     value={enteredOtp}
                     onChange={(e) => setEnteredOtp(e.target.value.replace(/\D/g, ''))}
-                    placeholder="Enter 6-digit OTP (e.g. 123456)"
+                    placeholder="Enter 6-digit verification code"
                     className="w-full h-12 pl-10 pr-3 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-center font-mono text-lg font-bold tracking-widest text-[#021936] focus:border-[#904d00] focus:bg-white outline-none transition-all"
                   />
                 </div>
