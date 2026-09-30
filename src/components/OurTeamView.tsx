@@ -188,8 +188,11 @@ export const OurTeamView: React.FC<OurTeamViewProps> = ({ onBookTourClick, onApp
                         src={member.imageUrl}
                         alt={member.name}
                         className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
-                        loading="eager"
+                        loading="lazy"
                         referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          e.currentTarget.src = 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=600&q=80';
+                        }}
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-[#021936]/75 via-transparent to-transparent"></div>
                       <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-md text-[#021936] text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shadow-xs">

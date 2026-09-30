@@ -24,12 +24,6 @@ async function startServer() {
     console.log('[DWPS Server] ℹ️ DATABASE_URL not set in environment. Running with local storage fallback.');
   }
 
-  // Serve static assets reliably from public and src/assets/images
-  app.use('/assets/faculty', express.static(path.join(process.cwd(), 'src/assets/images/assets/faculty')));
-  app.use('/assets/faculty', express.static(path.join(process.cwd(), 'public/assets/faculty')));
-  app.use('/assets', express.static(path.join(process.cwd(), 'public/assets')));
-  app.use(express.static(path.join(process.cwd(), 'public')));
-
   if (isDev) {
     // Mount Vite middleware in development mode
     const vite = await createViteServer({
