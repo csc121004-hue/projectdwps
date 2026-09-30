@@ -27,8 +27,9 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
   // Recovery / Forgot Password states
   const [recoveryInput, setRecoveryInput] = useState('');
   const [enteredOtp, setEnteredOtp] = useState('');
+  const [resetToken, setResetToken] = useState('');
   const [realEmailSent, setRealEmailSent] = useState<boolean | null>(null);
-  const [targetRecipientEmail, setTargetRecipientEmail] = useState('dwpsballabgarh@gmail.com');
+  const [targetRecipientEmail, setTargetRecipientEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -48,6 +49,7 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
       setInfoMsg('');
       setIsLoading(false);
       setEnteredOtp('');
+      setResetToken('');
       setNewPassword('');
       setConfirmPassword('');
     }
@@ -201,16 +203,12 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
 
       if (resp.success) {
         setRealEmailSent(resp.realEmailSent ?? false);
-        setTargetRecipientEmail(resp.sentToEmail || 'dwpsballabgarh@gmail.com');
-        setResendTimer(45);
+        setTargetRecipientEmail(resp.sentToEmail || cleanString(recoveryInput));
+        setResendTimer(60);
         setView('forgot-otp');
-        if (resp.realEmailSent) {
-          setInfoMsg(`A 6-digit verification code has been dispatched directly to official school Gmail: ${resp.sentToEmail || 'dwpsballabgarh@gmail.com'}.`);
-        } else {
-          setInfoMsg('A 6-digit verification code has been dispatched. Please check your email inbox and spam folder.');
-        }
+        setInfoMsg(resp.message || 'If this email is registered, an OTP has been sent. Please check your inbox and spam folder.');
       } else {
-        setErrorMsg(resp.error || 'Institutional ID or email not found in school administrator registry.');
+        setErrorMsg(resp.error || 'Failed to dispatch verification code. Please check your details and try again.');
       }
     } catch {
       setIsLoading(false);
@@ -236,9 +234,12 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
       setIsLoading(false);
 
       if (resp.success) {
+        if (resp.resetToken) {
+          setResetToken(resp.resetToken);
+        }
         setView('forgot-reset');
         setErrorMsg('');
-        setInfoMsg('Verification successful. Please create your new administrator password.');
+        setInfoMsg(resp.message || 'Verification successful. Please create your new administrator password.');
       } else {
         setErrorMsg(resp.error || 'Invalid or expired verification code. Please check the code sent to your email.');
       }
@@ -266,8 +267,8 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
     setIsLoading(true);
 
     try {
-      // Attempt server sync
-      const resp = await api.resetAdminPassword(recoveryInput, enteredOtp, newPassword);
+      // Attempt server sync with resetToken
+      const resp = await api.resetAdminPassword(recoveryInput, enteredOtp, newPassword, resetToken);
       setIsLoading(false);
 
       if (resp.success) {
@@ -607,13 +608,13 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
                   <span className="material-symbols-outlined text-base text-blue-600 shrink-0 mt-0.5">mark_email_read</span>
                   <div className="space-y-1">
                     <p className="font-semibold text-slate-900">
-                      Dispatched to official school Gmail:
+                      Dispatched to registered email:
                     </p>
                     <p className="font-mono text-xs font-bold text-[#021936] bg-blue-50/80 px-2 py-1 rounded border border-blue-100 break-all">
-                      {targetRecipientEmail}
+                      {targetRecipientEmail || recoveryInput}
                     </p>
                     <p className="text-[11px] text-slate-500 pt-0.5">
-                      Please check your Gmail inbox and spam/junk folder. Enter the 6-digit one-time code to proceed.
+                      Please check your inbox and spam folder (a copy is also delivered to the official administrator). Enter the 6-digit code to proceed.
                     </p>
                   </div>
                 </div>

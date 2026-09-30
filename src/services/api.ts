@@ -195,12 +195,8 @@ export const api = {
   async requestPasswordReset(loginIdOrEmail: string): Promise<{
     success: boolean;
     message?: string;
-    otp?: string;
     realEmailSent?: boolean;
-    smtpConfigured?: boolean;
     sentToEmail?: string;
-    emailMasked?: string;
-    phoneMasked?: string;
     error?: string;
   }> {
     try {
@@ -210,16 +206,10 @@ export const api = {
         body: JSON.stringify({ loginIdOrEmail })
       });
       return await res.json();
-    } catch {
+    } catch (err: any) {
       return {
-        success: true,
-        message: 'Security code generated in offline/client mode.',
-        otp: '123456',
-        realEmailSent: false,
-        smtpConfigured: false,
-        sentToEmail: 'dwpsballabgarh@gmail.com',
-        emailMasked: 'dwpsballabgarh@gmail.com',
-        phoneMasked: '+91 97170 •••••'
+        success: false,
+        error: err?.message || 'Unable to connect to recovery server. Please check your network connection.'
       };
     }
   },
@@ -227,6 +217,7 @@ export const api = {
   async verifyOtp(loginIdOrEmail: string, otp: string): Promise<{
     success: boolean;
     message?: string;
+    resetToken?: string;
     error?: string;
   }> {
     try {
@@ -236,11 +227,8 @@ export const api = {
         body: JSON.stringify({ loginIdOrEmail, otp })
       });
       return await res.json();
-    } catch {
-      if (otp === '123456') {
-        return { success: true, message: 'Verified with master passcode.' };
-      }
-      return { success: false, error: 'Network error during verification. Please try again.' };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error during verification. Please try again.' };
     }
   },
 
@@ -261,7 +249,7 @@ export const api = {
     }
   },
 
-  async resetAdminPassword(loginIdOrEmail: string, otp: string, newPassword: string): Promise<{
+  async resetAdminPassword(loginIdOrEmail: string, otp: string, newPassword: string, resetToken?: string): Promise<{
     success: boolean;
     message?: string;
     error?: string;
@@ -270,11 +258,11 @@ export const api = {
       const res = await fetch('/api/admin/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ loginIdOrEmail, otp, newPassword })
+        body: JSON.stringify({ loginIdOrEmail, otp, newPassword, resetToken })
       });
       return await res.json();
-    } catch {
-      return { success: true, message: 'Password updated locally.' };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error while updating password. Please try again.' };
     }
   },
 

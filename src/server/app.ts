@@ -442,7 +442,32 @@ app.delete('/api/announcements/:id', async (req, res) => {
 
 // 5b. School Admin Authentication & User Management API
 let serverCustomAdminPassword: string | null = null;
-const activeResetOtps = new Map<string, { otp: string; expiresAt: number }>();
+
+export interface SecureOtpRecord {
+  email: string;
+  userId?: string;
+  hashedOtp: string; // HMAC-SHA256 hash of OTP with random salt
+  salt: string;
+  createdAt: number;
+  expiresAt: number; // 10 minutes from creation
+  attempts: number; // failed verify attempts
+  maxAttempts: number; // 5 attempts max
+  verified: boolean;
+  verifiedAt?: number;
+  used: boolean;
+  usedAt?: number;
+  resetToken?: string;
+  resetTokenExpiresAt?: number;
+}
+
+export const activeSecureOtps = new Map<string, SecureOtpRecord>();
+
+// Cooldown and rate-limiting map: key = email, value = { lastRequestTime, requestCount, windowStart }
+export const otpRequestLimits = new Map<string, { lastRequestTime: number; requestCount: number; windowStart: number }>();
+
+export function hashOtpValue(otp: string, salt: string): string {
+  return crypto.createHmac('sha256', salt).update(otp.trim()).digest('hex');
+}
 
 export interface AdminUserRecord {
   id: string;
@@ -951,11 +976,13 @@ app.post('/api/admin/login', async (req, res) => {
 function buildRawEmail({
   from,
   to,
+  cc,
   subject,
   html,
 }: {
   from: string;
   to: string;
+  cc?: string;
   subject: string;
   html: string;
 }): string {
@@ -963,6 +990,7 @@ function buildRawEmail({
   const messageParts = [
     `From: ${from}`,
     `To: ${to}`,
+    ...(cc ? [`Cc: ${cc}`] : []),
     `Subject: ${utf8Subject}`,
     'MIME-Version: 1.0',
     'Content-Type: text/html; charset=utf-8',
@@ -976,6 +1004,28 @@ function buildRawEmail({
     .replace(/=+$/, '');
 }
 
+// Generate secure HTML email template for OTP
+function buildOtpEmailHtml(otp: string): string {
+  return `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 580px; margin: 0 auto; padding: 28px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <h2 style="color: #021936; margin: 0; font-family: serif; font-size: 22px;">Disney World Public School</h2>
+        <p style="color: #904d00; font-weight: 700; margin: 4px 0 0 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Institutional Portal Security</p>
+      </div>
+      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+      <p style="font-size: 14px; color: #1e293b; line-height: 1.6; margin-bottom: 8px;">Hello Administrator,</p>
+      <p style="font-size: 14px; color: #334155; line-height: 1.6;">A verification request was initiated to reset your institutional administrator password.</p>
+      <div style="background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 10px; padding: 22px; text-align: center; margin: 24px 0;">
+        <span style="font-size: 11px; color: #64748b; display: block; margin-bottom: 8px; text-transform: uppercase; font-weight: 700; letter-spacing: 1.5px;">One-Time Security Verification Code</span>
+        <span style="font-size: 36px; font-weight: 800; color: #021936; letter-spacing: 8px; font-family: 'Courier New', Courier, monospace; display: inline-block;">${otp}</span>
+      </div>
+      <p style="font-size: 13px; color: #64748b; line-height: 1.5;">This verification code is strictly confidential and will expire in <b>10 minutes</b>. If you did not initiate this request, please inform the school administration immediately.</p>
+      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+      <p style="font-size: 11px; color: #94a3b8; text-align: center; margin: 0;">Disney World Public School • Subhash Colony, Ballabgarh, Faridabad - 121004</p>
+    </div>
+  `;
+}
+
 // Dispatch live emails using Google OAuth2 (googleapis REST API)
 async function sendGmailWithOAuth2(
   targetEmail: string,
@@ -983,9 +1033,10 @@ async function sendGmailWithOAuth2(
   gmailUser: string,
   clientId: string,
   clientSecret: string,
-  refreshToken: string
+  refreshToken: string,
+  ccEmail?: string
 ): Promise<{ sent: boolean; method: string; info?: string }> {
-  console.log(`[OAuth2 Dispatcher] 🔑 Attempting Google OAuth2 REST dispatch to ${targetEmail} via googleapis...`);
+  console.log(`[OAuth2 Dispatcher] 🔑 Attempting Google OAuth2 REST dispatch via googleapis...`);
 
   const oauth2Client = new google.auth.OAuth2(
     clientId,
@@ -995,37 +1046,18 @@ async function sendGmailWithOAuth2(
 
   oauth2Client.setCredentials({ refresh_token: refreshToken });
 
-  // Test and refresh access token explicitly
   const tokenRes = await oauth2Client.getAccessToken();
   if (!tokenRes || !tokenRes.token) {
     throw new Error('Failed to obtain a valid access token using the provided Google OAuth2 refresh_token.');
   }
 
-  console.log('[OAuth2 Dispatcher] ✅ Google OAuth2 access token verified and refreshed successfully.');
-
   const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
   const raw = buildRawEmail({
     from: `"Disney World Public School" <${gmailUser}>`,
     to: targetEmail,
-    subject: `[DWPS Security] Admin Password Reset OTP: ${otp}`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
-        <div style="text-align: center; margin-bottom: 20px;">
-          <h2 style="color: #021936; margin: 0; font-family: serif;">Disney World Public School</h2>
-          <p style="color: #904d00; font-weight: bold; margin: 4px 0 0 0; font-size: 13px;">Subhash Colony, Ballabgarh • Admin Suite Security</p>
-        </div>
-        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-        <p style="font-size: 14px; color: #334155; line-height: 1.5;">Hello School Administrator,</p>
-        <p style="font-size: 14px; color: #334155; line-height: 1.5;">A password reset verification was requested for your institutional administrator account.</p>
-        <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0;">
-          <span style="font-size: 12px; color: #64748b; display: block; margin-bottom: 6px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">One-Time Security Code (OTP)</span>
-          <span style="font-size: 34px; font-weight: 800; color: #021936; letter-spacing: 6px; font-family: monospace;">${otp}</span>
-        </div>
-        <p style="font-size: 13px; color: #64748b; line-height: 1.5;">This code will expire in <b>10 minutes</b>. You can also use emergency master passcode <b>123456</b> if needed.</p>
-        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-        <p style="font-size: 11px; color: #94a3b8; text-align: center; margin: 0;">Disney World Public School • 1008, Gali no-11, Subhash Colony, Ballabgarh, Faridabad - 121004</p>
-      </div>
-    `,
+    cc: ccEmail,
+    subject: `[DWPS Security] Administrator Password Reset Verification Code`,
+    html: buildOtpEmailHtml(otp),
   });
 
   const sendRes = await gmail.users.messages.send({
@@ -1041,8 +1073,16 @@ async function sendGmailWithOAuth2(
   };
 }
 
-// Helper to dispatch live emails via Google OAuth2 (googleapis) with SMTP fallback and detailed error logging
-async function sendRealGmailOtp(targetEmail: string, otp: string): Promise<{
+// Production-ready email dispatcher supporting generic SMTP and Gmail configurations
+async function sendOtpEmail({
+  targetEmail,
+  otp,
+  officialEmail
+}: {
+  targetEmail: string;
+  otp: string;
+  officialEmail: string;
+}): Promise<{
   sent: boolean;
   method: string;
   info?: string;
@@ -1050,28 +1090,80 @@ async function sendRealGmailOtp(targetEmail: string, otp: string): Promise<{
   errorCode?: string;
   diagnostics?: Record<string, any>;
 }> {
-  const gmailUser = (process.env.GMAIL_USER || 'dwpsballabgarh@gmail.com').trim();
+  const configuredOfficial = (process.env.OFFICIAL_EMAIL || process.env.ADMIN_EMAIL || officialEmail || 'dwpsballabgarh@gmail.com').trim();
+  const smtpHost = (process.env.SMTP_HOST || '').trim();
+  const smtpPort = Number(process.env.SMTP_PORT) || 587;
+  const smtpUser = (process.env.SMTP_USER || process.env.GMAIL_USER || configuredOfficial).trim();
+  const rawSmtpPass = (process.env.SMTP_PASSWORD || process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS || process.env.EMAIL_PASS || '').trim();
+  const smtpPass = rawSmtpPass.replace(/[\s-]+/g, '');
+  const isSmtpSecure = process.env.SMTP_SECURE === 'true' || smtpPort === 465;
 
-  // 1. Google OAuth2 credentials (Primary: avoids IP blocking on live domains)
+  // Send a copy to the configured official/admin email using CC
+  const shouldCcAdmin = configuredOfficial && targetEmail.toLowerCase() !== configuredOfficial.toLowerCase();
+  const ccRecipient = shouldCcAdmin ? configuredOfficial : undefined;
+
+  console.log(`[Email Dispatcher] 📧 Initiating OTP dispatch (CC to Admin: ${configuredOfficial})...`);
+
+  // 1. Check custom SMTP configuration if SMTP_HOST is set
+  if (smtpHost && smtpPass) {
+    try {
+      console.log(`[Email Dispatcher] 🔌 Connecting to custom SMTP server ${smtpHost}:${smtpPort}...`);
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: isSmtpSecure,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass,
+        },
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 15000,
+      });
+
+      const mailOptions = {
+        from: `"Disney World Public School" <${smtpUser}>`,
+        to: targetEmail,
+        ...(ccRecipient ? { cc: ccRecipient } : {}),
+        subject: `[DWPS Security] Administrator Password Reset Verification Code`,
+        html: buildOtpEmailHtml(otp),
+      };
+
+      const result = await transporter.sendMail(mailOptions);
+      console.log(`[Email Dispatcher] ✅ Email delivered via SMTP server (${smtpHost}). Message ID: ${result.messageId}`);
+      return {
+        sent: true,
+        method: `smtp-${smtpHost}`,
+        info: result.messageId,
+        diagnostics: {
+          host: smtpHost,
+          port: smtpPort,
+          cc: ccRecipient,
+          verified: true
+        }
+      };
+    } catch (smtpErr: any) {
+      console.error(`[Email Dispatcher] ❌ Custom SMTP failed: ${smtpErr?.message}`);
+      // Fall through to other configured methods
+    }
+  }
+
+  // 2. Google OAuth2 credentials (googleapis REST API)
   const oauthClientId = (process.env.GMAIL_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || process.env.OAUTH_CLIENT_ID || '').trim();
   const oauthClientSecret = (process.env.GMAIL_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET || process.env.OAUTH_CLIENT_SECRET || '').trim();
   const oauthRefreshToken = (process.env.GMAIL_REFRESH_TOKEN || process.env.GOOGLE_REFRESH_TOKEN || process.env.OAUTH_REFRESH_TOKEN || '').trim();
 
-  const isOAuth2Configured = Boolean(oauthClientId && oauthClientSecret && oauthRefreshToken);
-
-  console.log(`[Email Dispatcher] 📧 Initiating OTP dispatch to ${targetEmail}...`);
-  console.log(`[Email Dispatcher] ⚙️ Auth Check: User="${gmailUser}", OAuth2 Configured=${isOAuth2Configured}, App Password Configured=${Boolean(process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS || process.env.EMAIL_PASS)}`);
-
-  if (isOAuth2Configured) {
+  if (oauthClientId && oauthClientSecret && oauthRefreshToken) {
     try {
-      console.log('[Email Dispatcher] 🚀 Using Google OAuth2 via googleapis REST API (Bypasses SMTP port & Google IP security blocks)');
+      console.log('[Email Dispatcher] 🚀 Using Google OAuth2 via googleapis REST API...');
       const oauthResult = await sendGmailWithOAuth2(
         targetEmail,
         otp,
-        gmailUser,
+        smtpUser,
         oauthClientId,
         oauthClientSecret,
-        oauthRefreshToken
+        oauthRefreshToken,
+        ccRecipient
       );
       return {
         sent: true,
@@ -1079,36 +1171,28 @@ async function sendRealGmailOtp(targetEmail: string, otp: string): Promise<{
         info: oauthResult.info,
         diagnostics: {
           authType: 'Google OAuth2 (googleapis REST API)',
-          user: gmailUser,
-          recipient: targetEmail,
+          user: smtpUser,
+          cc: ccRecipient,
           verified: true,
         },
       };
     } catch (oauthErr: any) {
       console.error('[Email Dispatcher] ❌ Google OAuth2 dispatch failed:', oauthErr?.message || oauthErr);
-      // Fall through to SMTP fallback if available
+      // Fall through to Gmail SMTP fallback
     }
   }
 
-  // 2. SMTP App Password fallback (if OAuth2 is not configured or failed)
-  const rawPass = process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS || process.env.EMAIL_PASS || '';
-  const gmailAppPassword = rawPass.replace(/[\s-]+/g, ''); // strip spaces and hyphens
-
-  if (gmailAppPassword) {
-    console.log('[Email Dispatcher] 🔄 Attempting SMTP fallback transport...');
-
-    // Configurations to test: Primary SSL (Port 465) and Fallback STARTTLS (Port 587)
-    const configs = [
+  // 3. Gmail App Password fallback
+  if (smtpPass) {
+    console.log('[Email Dispatcher] 🔄 Attempting Gmail SMTP fallback...');
+    const gmailConfigs = [
       {
         name: 'Gmail SSL Direct (Port 465)',
         transportOpts: {
           host: 'smtp.gmail.com',
           port: 465,
           secure: true,
-          auth: {
-            user: gmailUser,
-            pass: gmailAppPassword,
-          },
+          auth: { user: smtpUser, pass: smtpPass },
           connectionTimeout: 10000,
           greetingTimeout: 10000,
           socketTimeout: 15000,
@@ -1121,10 +1205,7 @@ async function sendRealGmailOtp(targetEmail: string, otp: string): Promise<{
           port: 587,
           secure: false,
           requireTLS: true,
-          auth: {
-            user: gmailUser,
-            pass: gmailAppPassword,
-          },
+          auth: { user: smtpUser, pass: smtpPass },
           connectionTimeout: 10000,
           greetingTimeout: 10000,
           socketTimeout: 15000,
@@ -1133,60 +1214,31 @@ async function sendRealGmailOtp(targetEmail: string, otp: string): Promise<{
     ];
 
     let lastError: any = null;
-    const attemptedDiagnostics: any[] = [];
-
-    for (const cfg of configs) {
-      console.log(`[Email Dispatcher] 🔌 Testing SMTP connection via ${cfg.name}...`);
-      const transporter = nodemailer.createTransport(cfg.transportOpts);
-
+    for (const cfg of gmailConfigs) {
       try {
-        await transporter.verify();
-        console.log(`[Email Dispatcher] ✅ Connection & Authentication verified successfully via ${cfg.name}!`);
-
+        const transporter = nodemailer.createTransport(cfg.transportOpts);
         const mailOptions = {
-          from: `"Disney World Public School" <${gmailUser}>`,
+          from: `"Disney World Public School" <${smtpUser}>`,
           to: targetEmail,
-          subject: `[DWPS Security] Admin Password Reset OTP: ${otp}`,
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
-              <div style="text-align: center; margin-bottom: 20px;">
-                <h2 style="color: #021936; margin: 0; font-family: serif;">Disney World Public School</h2>
-                <p style="color: #904d00; font-weight: bold; margin: 4px 0 0 0; font-size: 13px;">Subhash Colony, Ballabgarh • Admin Suite Security</p>
-              </div>
-              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-              <p style="font-size: 14px; color: #334155; line-height: 1.5;">Hello School Administrator,</p>
-              <p style="font-size: 14px; color: #334155; line-height: 1.5;">A password reset verification was requested for your institutional administrator account.</p>
-              <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0;">
-                <span style="font-size: 12px; color: #64748b; display: block; margin-bottom: 6px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">One-Time Security Code (OTP)</span>
-                <span style="font-size: 34px; font-weight: 800; color: #021936; letter-spacing: 6px; font-family: monospace;">${otp}</span>
-              </div>
-              <p style="font-size: 13px; color: #64748b; line-height: 1.5;">This code will expire in <b>10 minutes</b>. You can also use emergency master passcode <b>123456</b> if needed.</p>
-              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-              <p style="font-size: 11px; color: #94a3b8; text-align: center; margin: 0;">Disney World Public School • 1008, Gali no-11, Subhash Colony, Ballabgarh, Faridabad - 121004</p>
-            </div>
-          `,
+          ...(ccRecipient ? { cc: ccRecipient } : {}),
+          subject: `[DWPS Security] Administrator Password Reset Verification Code`,
+          html: buildOtpEmailHtml(otp),
         };
 
         const result = await transporter.sendMail(mailOptions);
-        console.log(`[Email Dispatcher] 🚀 Email delivered successfully via ${cfg.name} to ${targetEmail}. MessageId: ${result.messageId}`);
+        console.log(`[Email Dispatcher] ✅ Email delivered via ${cfg.name}. Message ID: ${result.messageId}`);
         return {
           sent: true,
           method: cfg.name,
           info: result.messageId,
           diagnostics: {
             usedConfig: cfg.name,
-            recipient: targetEmail,
+            cc: ccRecipient,
             verified: true
           }
         };
       } catch (err: any) {
         lastError = err;
-        attemptedDiagnostics.push({
-          config: cfg.name,
-          errorCode: err?.code || 'UNKNOWN',
-          responseCode: err?.responseCode,
-          message: err?.message,
-        });
         console.error(`[Email Dispatcher] ❌ Connection error on ${cfg.name}:`, err?.message);
       }
     }
@@ -1194,45 +1246,82 @@ async function sendRealGmailOtp(targetEmail: string, otp: string): Promise<{
     return {
       sent: false,
       method: 'smtp-fallback-failed',
-      error: lastError?.message || 'Failed to connect to Gmail SMTP.',
-      errorCode: lastError?.code || 'SMTP_CONNECTION_ERROR',
-      diagnostics: {
-        attempts: attemptedDiagnostics,
-        recommendation: 'Configure Google OAuth2 with googleapis to bypass SMTP security blocks.'
-      }
+      error: lastError?.message || 'Failed to connect to email SMTP server.',
+      errorCode: lastError?.code || 'SMTP_CONNECTION_ERROR'
     };
   }
 
-  // 3. No credentials set
-  const errorMsg = 'Neither Google OAuth2 credentials nor GMAIL_APP_PASSWORD are set in server environment variables (.env).';
+  // 4. Missing credentials
+  const errorMsg = 'SMTP / Gmail credentials not configured in server environment variables (OFFICIAL_EMAIL, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, or GMAIL_APP_PASSWORD).';
   console.warn(`[Email Dispatcher] ⚠️ ${errorMsg}`);
   return {
     sent: false,
-    method: 'simulated',
-    info: 'Configure Google OAuth2 (GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN) in your environment (.env).',
+    method: 'unconfigured',
     error: errorMsg,
-    errorCode: 'MISSING_CREDENTIALS',
-    diagnostics: {
-      gmailUser,
-      oauthConfigured: false,
-      smtpConfigured: false,
-      recommendedAction: 'Add GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REFRESH_TOKEN to server hosting environment (.env)'
-    }
+    errorCode: 'MISSING_CREDENTIALS'
   };
+}
+
+// Helper to look up an administrator account by ID or email
+async function findAdminUser(cleanIdOrEmail: string): Promise<AdminUserRecord | null> {
+  const clean = cleanIdOrEmail.trim().toLowerCase();
+
+  // 1. Check in-memory store
+  const memUser = inMemoryAdminUsers.find(
+    (u) => u.email.toLowerCase() === clean || u.userId.toLowerCase() === clean
+  );
+  if (memUser) return memUser;
+
+  // 2. Check Neon database if available
+  const sql = getSql();
+  if (sql) {
+    try {
+      const rows = await sql`
+        SELECT id, name, email, user_id as "userId", mobile, designation, password, role, status, created_at as "createdAt"
+        FROM dwps_admin_users
+        WHERE LOWER(email) = ${clean} OR LOWER(user_id) = ${clean}
+        LIMIT 1
+      `;
+      if (rows && rows.length > 0) {
+        return rows[0] as AdminUserRecord;
+      }
+    } catch (err) {
+      console.warn('[Admin Auth] DB query error while looking up user:', err);
+    }
+  }
+
+  // 3. Fallback to default official accounts if matching
+  if (clean === 'dwpsballabgarh@gmail.com' || clean === 'dwpsballabgarh') {
+    return defaultAdminUsers[0];
+  }
+  if (clean === 'rahul@dwpsballabgarh.org' || clean === 'rahul@dwps' || clean === 'rahul' || clean === 'csc121004@gmail.com') {
+    return defaultAdminUsers[1];
+  }
+
+  return null;
 }
 
 // Dedicated endpoint to test and verify email authentication (Google OAuth2 + SMTP) directly on live domain
 app.all(['/api/admin/verify-smtp', '/api/admin/verify-email-auth'], async (_req, res) => {
-  const gmailUser = (process.env.GMAIL_USER || 'dwpsballabgarh@gmail.com').trim();
+  const officialEmail = (process.env.OFFICIAL_EMAIL || process.env.ADMIN_EMAIL || process.env.GMAIL_USER || 'dwpsballabgarh@gmail.com').trim();
+  const smtpHost = (process.env.SMTP_HOST || '').trim();
+  const smtpPort = Number(process.env.SMTP_PORT) || 587;
+  const smtpUser = (process.env.SMTP_USER || process.env.GMAIL_USER || officialEmail).trim();
+  const rawPass = process.env.SMTP_PASSWORD || process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS || process.env.EMAIL_PASS || '';
+  const smtpPass = rawPass.replace(/[\s-]+/g, '');
+
   const oauthClientId = (process.env.GMAIL_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || process.env.OAUTH_CLIENT_ID || '').trim();
   const oauthClientSecret = (process.env.GMAIL_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET || process.env.OAUTH_CLIENT_SECRET || '').trim();
   const oauthRefreshToken = (process.env.GMAIL_REFRESH_TOKEN || process.env.GOOGLE_REFRESH_TOKEN || process.env.OAUTH_REFRESH_TOKEN || '').trim();
 
-  const rawPass = process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS || process.env.EMAIL_PASS || '';
-  const gmailAppPassword = rawPass.replace(/[\s-]+/g, '');
-
   const results: any = {
-    user: gmailUser,
+    officialEmail,
+    smtpUser,
+    customSmtp: {
+      configured: Boolean(smtpHost && smtpPass),
+      host: smtpHost || 'not set',
+      port: smtpPort,
+    },
     oauth2: {
       configured: Boolean(oauthClientId && oauthClientSecret && oauthRefreshToken),
       hasClientId: Boolean(oauthClientId),
@@ -1240,11 +1329,29 @@ app.all(['/api/admin/verify-smtp', '/api/admin/verify-email-auth'], async (_req,
       hasRefreshToken: Boolean(oauthRefreshToken),
     },
     smtp: {
-      configured: Boolean(gmailAppPassword),
-      appPasswordLength: gmailAppPassword.length,
+      configured: Boolean(smtpPass),
       ports: {}
     }
   };
+
+  // Test custom SMTP if configured
+  if (results.customSmtp.configured) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: process.env.SMTP_SECURE === 'true' || smtpPort === 465,
+        auth: { user: smtpUser, pass: smtpPass },
+        connectionTimeout: 8000,
+      });
+      await transporter.verify();
+      results.customSmtp.verified = true;
+      results.customSmtp.message = 'Connected & Authenticated successfully with custom SMTP server.';
+    } catch (err: any) {
+      results.customSmtp.verified = false;
+      results.customSmtp.error = err?.message;
+    }
+  }
 
   // Test OAuth2 with googleapis if credentials exist
   if (results.oauth2.configured) {
@@ -1266,13 +1373,13 @@ app.all(['/api/admin/verify-smtp', '/api/admin/verify-email-auth'], async (_req,
     }
   }
 
-  // Test SMTP if password configured
-  if (results.smtp.configured) {
+  // Test standard Gmail SMTP if password configured
+  if (results.smtp.configured && !results.customSmtp.configured) {
     const testTransporter465 = nodemailer.createTransport({
       host: 'smtp.gmail.com',
       port: 465,
       secure: true,
-      auth: { user: gmailUser, pass: gmailAppPassword },
+      auth: { user: smtpUser, pass: smtpPass },
       connectionTimeout: 8000,
     });
     try {
@@ -1283,13 +1390,11 @@ app.all(['/api/admin/verify-smtp', '/api/admin/verify-email-auth'], async (_req,
     }
   }
 
-  results.readyToSend = results.oauth2.tokenVerified || results.smtp.ports?.['port_465_ssl']?.ok;
-  results.recommendedMethod = results.oauth2.configured ? 'Google OAuth2 (googleapis)' : 'SMTP App Password';
-
+  results.readyToSend = results.customSmtp.verified || results.oauth2.tokenVerified || results.smtp.ports?.['port_465_ssl']?.ok;
   return res.json(results);
 });
 
-// 5c. Forgot Password - Request Recovery OTP via official Gmail dwpsballabgarh@gmail.com
+// 5c. Forgot Password - Request Recovery OTP
 app.post('/api/admin/request-password-reset', async (req, res) => {
   const { loginIdOrEmail } = req.body || {};
   const clean = (loginIdOrEmail || '').trim().toLowerCase();
@@ -1297,156 +1402,267 @@ app.post('/api/admin/request-password-reset', async (req, res) => {
   if (!clean) {
     return res.status(400).json({
       success: false,
-      error: 'Please enter your Institutional ID or registered Email.'
+      error: 'Please enter your registered institutional email or User ID.'
     });
   }
 
-  // Look up in memory
-  let matchedUser = inMemoryAdminUsers.find(
-    (u) =>
-      u.email.toLowerCase() === clean ||
-      u.userId.toLowerCase() === clean ||
-      (u.mobile && u.mobile.replace(/\D/g, '').endsWith(clean.replace(/\D/g, '')))
-  );
+  // 1. Verify that the email or User ID belongs to an existing user
+  const user = await findAdminUser(clean);
 
-  // Look up in Neon DB if configured
-  if (!matchedUser) {
-    const sql = getSql();
-    if (sql) {
-      try {
-        const dbUsers = await sql`
-          SELECT id, name, email, user_id as "userId", mobile, designation, password, role, status
-          FROM dwps_admin_users
-          WHERE LOWER(email) = ${clean} OR LOWER(user_id) = ${clean}
-          LIMIT 1
-        `;
-        if (dbUsers.length > 0) {
-          matchedUser = dbUsers[0] as any;
-        }
-      } catch (dbErr) {
-        console.warn('[Admin Recovery] DB lookup warning:', dbErr);
-      }
+  // If email/ID is unknown, return a generic response to prevent account enumeration
+  if (!user) {
+    console.log(`[Admin Recovery] Password reset requested for unregistered identifier. Generic response returned.`);
+    return res.json({
+      success: true,
+      message: 'If this email is registered, an OTP has been sent. Please check your inbox and spam folder.'
+    });
+  }
+
+  // Account status check
+  if (user.status && user.status.toLowerCase() === 'suspended') {
+    return res.status(403).json({
+      success: false,
+      error: 'This administrator account is suspended. Please contact the institutional head office.'
+    });
+  }
+
+  const userEmail = (user.email || '').trim().toLowerCase();
+  const userId = (user.userId || '').trim().toLowerCase();
+
+  // 2. Rate limiting and cooldown check
+  const rateLimitKey = userEmail;
+  const now = Date.now();
+  const limitRecord = otpRequestLimits.get(rateLimitKey) || { lastRequestTime: 0, requestCount: 0, windowStart: now };
+
+  // Reset 15-minute rolling window
+  if (now - limitRecord.windowStart > 15 * 60 * 1000) {
+    limitRecord.windowStart = now;
+    limitRecord.requestCount = 0;
+  }
+
+  // Cooldown: 60 seconds
+  const cooldownRemaining = Math.ceil((limitRecord.lastRequestTime + 60 * 1000 - now) / 1000);
+  if (cooldownRemaining > 0 && limitRecord.lastRequestTime > 0) {
+    return res.status(429).json({
+      success: false,
+      error: `A verification code was requested recently. Please wait ${cooldownRemaining} second${cooldownRemaining === 1 ? '' : 's'} before requesting a new code.`
+    });
+  }
+
+  // Max 5 OTP requests per 15-minute window
+  if (limitRecord.requestCount >= 5) {
+    const minutesRemaining = Math.ceil((limitRecord.windowStart + 15 * 60 * 1000 - now) / 1000 / 60);
+    return res.status(429).json({
+      success: false,
+      error: `Too many verification code requests. Please wait ${minutesRemaining} minute${minutesRemaining === 1 ? '' : 's'} before trying again.`
+    });
+  }
+
+  // 3. Invalidate old OTPs when a new one is requested
+  for (const [key, oldRecord] of activeSecureOtps.entries()) {
+    if (oldRecord.email === userEmail || (userId && oldRecord.userId === userId)) {
+      activeSecureOtps.delete(key);
     }
   }
 
-  const isAuthorized =
-    Boolean(matchedUser) ||
-    clean === 'dwpsballabgarh@gmail.com' ||
-    clean === 'dwpsballabgarh' ||
-    clean === 'rahul@dwpsballabgarh.org' ||
-    clean === 'rahul@dwps' ||
-    clean === 'rahul' ||
-    clean === 'admin' ||
-    clean === 'dwpsadmin' ||
-    clean === 'csc121004@gmail.com' ||
-    clean.includes('dwps') ||
-    clean.includes('rahul') ||
-    clean.includes('admin') ||
-    (clean.replace(/\D/g, '').length >= 5 && clean.replace(/\D/g, '').includes('97170'));
+  // 4. Generate secure 6-digit OTP only on the server
+  const otp = crypto.randomInt(100000, 1000000).toString();
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hashedOtp = hashOtpValue(otp, salt);
+  const expiresAt = now + 10 * 60 * 1000; // 10 minutes expiry
 
-  if (!isAuthorized) {
-    return res.status(404).json({
-      success: false,
-      error: 'Institutional ID or Email not found in the administrator registry.'
-    });
+  const secureRecord: SecureOtpRecord = {
+    email: userEmail,
+    userId,
+    hashedOtp,
+    salt,
+    createdAt: now,
+    expiresAt,
+    attempts: 0,
+    maxAttempts: 5,
+    verified: false,
+    used: false,
+  };
+
+  // Store hashed OTP indexed by email, userId, and requested identifier
+  activeSecureOtps.set(userEmail, secureRecord);
+  if (userId) {
+    activeSecureOtps.set(userId, secureRecord);
+  }
+  if (clean !== userEmail && clean !== userId) {
+    activeSecureOtps.set(clean, secureRecord);
   }
 
-  // Target email: use user email or fallback to official school Gmail
-  const officialGmail = 'dwpsballabgarh@gmail.com';
-  const targetEmail = (matchedUser?.email && matchedUser.email.includes('@')) ? matchedUser.email : officialGmail;
+  // Update cooldown and rate limits
+  limitRecord.lastRequestTime = now;
+  limitRecord.requestCount += 1;
+  otpRequestLimits.set(rateLimitKey, limitRecord);
 
-  // Generate 6-digit OTP
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  // Valid for 10 minutes
-  const expiry = Date.now() + 10 * 60 * 1000;
-  activeResetOtps.set(clean, { otp, expiresAt: expiry });
-  activeResetOtps.set(officialGmail, { otp, expiresAt: expiry });
-  if (targetEmail !== officialGmail) {
-    activeResetOtps.set(targetEmail.toLowerCase(), { otp, expiresAt: expiry });
-  }
-  console.log(`[Admin Recovery] Generated OTP ${otp} for account: ${clean} (Target: ${targetEmail})`);
+  // 5. Send OTP to user's registered email with copy (CC) to official/admin email
+  const officialAdminEmail = (process.env.OFFICIAL_EMAIL || process.env.ADMIN_EMAIL || process.env.GMAIL_USER || 'dwpsballabgarh@gmail.com').trim();
+  const emailResult = await sendOtpEmail({
+    targetEmail: userEmail,
+    otp,
+    officialEmail: officialAdminEmail
+  });
 
-  // Dispatch real email via Gmail SMTP if credentials exist
-  const emailResult = await sendRealGmailOtp(targetEmail, otp);
+  const maskedEmail = userEmail.replace(/(^.{2})(.*)(@.*$)/, (_m, p1, p2, p3) => p1 + '•'.repeat(Math.max(p2.length, 3)) + p3);
+  console.log(`[Admin Recovery] Verification code dispatched for user: ${user.name} (${maskedEmail}) - Dispatch status: ${emailResult.sent ? 'Delivered' : 'Pending'}`);
 
+  // Do NOT expose OTP in response or logs!
   return res.json({
     success: true,
     message: emailResult.sent
-      ? `Verification code has been delivered directly to real Gmail: ${targetEmail}!`
-      : `Verification code generated for ${targetEmail}. ${emailResult.error || 'SMTP delivery pending.'}`,
+      ? `A 6-digit verification code has been dispatched to your registered email (${maskedEmail}).`
+      : 'If this email is registered, an OTP has been sent. Please check your inbox and spam folder.',
+    sentToEmail: maskedEmail,
     realEmailSent: emailResult.sent,
-    emailMethod: emailResult.method,
-    authConfigured: Boolean(
-      (process.env.GMAIL_CLIENT_ID && process.env.GMAIL_REFRESH_TOKEN) ||
-      (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_REFRESH_TOKEN) ||
-      process.env.GMAIL_APP_PASSWORD ||
-      process.env.GMAIL_PASS
-    ),
-    emailError: emailResult.error,
-    emailErrorCode: emailResult.errorCode,
-    diagnostics: emailResult.diagnostics,
-    otp, // Returned for instant testing and UI preview
-    sentToEmail: targetEmail,
-    emailMasked: targetEmail,
-    phoneMasked: '+91 97170 •••••'
+    emailError: emailResult.sent ? undefined : emailResult.error
   });
 });
 
-// 5d. Forgot Password - Verify OTP
+// 5d. Forgot Password - Verify OTP on Backend
 app.post('/api/admin/verify-otp', async (req, res) => {
   const { loginIdOrEmail, otp } = req.body || {};
   const clean = (loginIdOrEmail || '').trim().toLowerCase();
   const cleanOtp = (otp || '').toString().trim();
-  const officialGmail = 'dwpsballabgarh@gmail.com';
 
-  if (!cleanOtp) {
-    return res.status(400).json({ success: false, error: 'Verification code (OTP) is required.' });
+  if (!clean) {
+    return res.status(400).json({ success: false, error: 'User identifier or email is required.' });
   }
 
-  const record = activeResetOtps.get(clean) || activeResetOtps.get(officialGmail);
-  const isOtpValid = (record && record.otp === cleanOtp && Date.now() < record.expiresAt) || cleanOtp === '123456';
+  if (!cleanOtp) {
+    return res.status(400).json({ success: false, error: 'Please enter the 6-digit verification code.' });
+  }
 
-  if (!isOtpValid) {
+  if (!/^\d{6}$/.test(cleanOtp)) {
+    return res.status(400).json({ success: false, error: 'Verification code must be exactly 6 digits.' });
+  }
+
+  const record = activeSecureOtps.get(clean);
+
+  if (!record || record.used) {
     return res.status(400).json({
       success: false,
-      error: 'Invalid or expired verification code (OTP). Please check the code sent to your email or try again.'
+      error: 'No active verification code found for this account, or the code has already been used. Please request a new one.'
     });
   }
 
+  // Check expiry (10 minutes)
+  if (Date.now() > record.expiresAt) {
+    activeSecureOtps.delete(clean);
+    if (record.email) activeSecureOtps.delete(record.email);
+    if (record.userId) activeSecureOtps.delete(record.userId);
+    return res.status(400).json({
+      success: false,
+      error: 'This verification code has expired. Please request a new code.'
+    });
+  }
+
+  // Check maximum failed attempts (5 max)
+  if (record.attempts >= record.maxAttempts) {
+    activeSecureOtps.delete(clean);
+    if (record.email) activeSecureOtps.delete(record.email);
+    if (record.userId) activeSecureOtps.delete(record.userId);
+    return res.status(429).json({
+      success: false,
+      error: 'Too many incorrect attempts. This verification code has been invalidated for security. Please request a new one.'
+    });
+  }
+
+  // Securely verify OTP hash
+  const computedHash = hashOtpValue(cleanOtp, record.salt);
+  if (computedHash !== record.hashedOtp) {
+    record.attempts += 1;
+    const remaining = record.maxAttempts - record.attempts;
+    if (remaining <= 0) {
+      activeSecureOtps.delete(clean);
+      if (record.email) activeSecureOtps.delete(record.email);
+      if (record.userId) activeSecureOtps.delete(record.userId);
+      return res.status(429).json({
+        success: false,
+        error: 'Incorrect verification code. Maximum attempts exceeded. This code has been invalidated.'
+      });
+    }
+    return res.status(400).json({
+      success: false,
+      error: `Incorrect verification code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`
+    });
+  }
+
+  // OTP verified! Generate secure one-time reset token
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  record.verified = true;
+  record.verifiedAt = Date.now();
+  record.resetToken = resetToken;
+  record.resetTokenExpiresAt = Date.now() + 10 * 60 * 1000;
+
+  console.log(`[Admin Recovery] Verification code successfully validated for: ${record.email}`);
+
   return res.json({
     success: true,
-    message: 'Verification code verified successfully.'
+    message: 'Verification code verified successfully. Please enter your new password.',
+    resetToken
   });
 });
 
 // 5e. Forgot Password - Verify OTP & Set New Password
 app.post('/api/admin/reset-password', async (req, res) => {
-  const { loginIdOrEmail, otp, newPassword } = req.body || {};
+  const { loginIdOrEmail, otp, resetToken, newPassword } = req.body || {};
   const clean = (loginIdOrEmail || '').trim().toLowerCase();
-  const officialGmail = 'dwpsballabgarh@gmail.com';
+  const cleanOtp = (otp || '').toString().trim();
 
-  if (!newPassword || newPassword.length < 6) {
+  if (!newPassword || typeof newPassword !== 'string' || newPassword.trim().length < 6) {
     return res.status(400).json({
       success: false,
-      error: 'New password must be at least 6 characters.'
+      error: 'New password must contain at least 6 characters.'
     });
   }
 
-  const record = activeResetOtps.get(clean) || activeResetOtps.get(officialGmail);
-  // Allow verification if OTP matches or emergency master fallback
-  const isOtpValid = (record && record.otp === otp && Date.now() < record.expiresAt) || otp === '123456';
+  const record = activeSecureOtps.get(clean);
 
-  if (!isOtpValid && record) {
+  if (!record || record.used) {
     return res.status(400).json({
       success: false,
-      error: 'Invalid or expired verification code (OTP). You can also use emergency master code 123456.'
+      error: 'Verification session has expired or has already been used. Please request a new verification code.'
+    });
+  }
+
+  // Check expiry
+  const now = Date.now();
+  if (now > (record.resetTokenExpiresAt || record.expiresAt)) {
+    activeSecureOtps.delete(clean);
+    if (record.email) activeSecureOtps.delete(record.email);
+    if (record.userId) activeSecureOtps.delete(record.userId);
+    return res.status(400).json({
+      success: false,
+      error: 'Verification session has expired. Please request a new verification code.'
+    });
+  }
+
+  // Verify that either the resetToken matches OR the OTP hash matches
+  let isValidSession = false;
+  if (resetToken && record.resetToken && resetToken === record.resetToken && record.verified) {
+    isValidSession = true;
+  } else if (cleanOtp && hashOtpValue(cleanOtp, record.salt) === record.hashedOtp) {
+    isValidSession = true;
+  }
+
+  if (!isValidSession) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid verification session or code. Please restart the password reset process.'
     });
   }
 
   const updatedPw = newPassword.trim();
-  serverCustomAdminPassword = updatedPw;
-  activeResetOtps.delete(clean);
-  activeResetOtps.delete(officialGmail);
+
+  // Invalidate OTP and reset session immediately after password reset
+  record.used = true;
+  record.usedAt = now;
+  activeSecureOtps.delete(clean);
+  if (record.email) activeSecureOtps.delete(record.email);
+  if (record.userId) activeSecureOtps.delete(record.userId);
 
   // Update in Neon database if available
   const sql = getSql();
@@ -1455,7 +1671,7 @@ app.post('/api/admin/reset-password', async (req, res) => {
       await sql`
         UPDATE dwps_admin_users
         SET password = ${updatedPw}
-        WHERE LOWER(email) = ${clean} OR LOWER(user_id) = ${clean}
+        WHERE LOWER(email) = ${record.email} OR LOWER(user_id) = ${record.userId || ''}
       `;
     } catch (sqlErr) {
       console.warn('[Admin Recovery] Could not update password in SQL:', sqlErr);
@@ -1464,17 +1680,21 @@ app.post('/api/admin/reset-password', async (req, res) => {
 
   // Update in memory user if exists
   const userInMemory = inMemoryAdminUsers.find(
-    (u) => u.email.toLowerCase() === clean || u.userId.toLowerCase() === clean
+    (u) => u.email.toLowerCase() === record.email || (record.userId && u.userId.toLowerCase() === record.userId)
   );
   if (userInMemory) {
     userInMemory.password = updatedPw;
   }
 
-  console.log(`[Admin Recovery] Password successfully updated for ${clean} / ${officialGmail}`);
+  if (record.email === 'dwpsballabgarh@gmail.com' || record.userId === 'dwpsballabgarh') {
+    serverCustomAdminPassword = updatedPw;
+  }
+
+  console.log(`[Admin Recovery] Password reset successful and OTP session invalidated for: ${record.email}`);
 
   return res.json({
     success: true,
-    message: 'Institutional administrator password updated successfully.'
+    message: 'Institutional administrator password updated successfully! You can now log in with your new password.'
   });
 });
 
