@@ -1,4 +1,4 @@
-import { InquiryRecord, SchoolAnnouncement, GradeFeeStructure } from '../data/schoolData';
+import { InquiryRecord, SchoolAnnouncement, GradeFeeStructure, StaffMember } from '../data/schoolData';
 
 export interface TableSummary {
   name: string;
@@ -313,6 +313,141 @@ export const api = {
       return await res.json();
     } catch (err: any) {
       return { success: false, error: err?.message || 'Network error occurred.' };
+    }
+  },
+
+  // Staff Management API Methods
+  async getStaff(): Promise<{ success: boolean; source?: string; data?: StaffMember[]; error?: string }> {
+    try {
+      const res = await fetch('/api/staff');
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Failed to load staff directory.' };
+    }
+  },
+
+  async getAdminStaff(requesterEmail?: string): Promise<{ success: boolean; source?: string; data?: StaffMember[]; error?: string }> {
+    try {
+      const res = await fetch('/api/admin/staff', {
+        headers: {
+          'x-admin-email': (requesterEmail || '').trim().toLowerCase()
+        }
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Failed to load staff administration records.' };
+    }
+  },
+
+  async createStaff(
+    staffData: Partial<StaffMember>,
+    requesterEmail?: string
+  ): Promise<{ success: boolean; message?: string; staff?: StaffMember; error?: string }> {
+    try {
+      const res = await fetch('/api/admin/staff', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-email': (requesterEmail || '').trim().toLowerCase()
+        },
+        body: JSON.stringify({
+          ...staffData,
+          requesterEmail: (requesterEmail || '').trim().toLowerCase()
+        })
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error occurred while adding staff.' };
+    }
+  },
+
+  async updateStaff(
+    id: string,
+    staffData: Partial<StaffMember>,
+    requesterEmail?: string
+  ): Promise<{ success: boolean; message?: string; staff?: StaffMember; error?: string }> {
+    try {
+      const res = await fetch(`/api/admin/staff/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-email': (requesterEmail || '').trim().toLowerCase()
+        },
+        body: JSON.stringify({
+          ...staffData,
+          requesterEmail: (requesterEmail || '').trim().toLowerCase()
+        })
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error occurred while updating staff.' };
+    }
+  },
+
+  async deleteStaff(
+    id: string,
+    requesterEmail?: string,
+    permanent = false
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    try {
+      const res = await fetch(`/api/admin/staff/${id}?permanent=${permanent}`, {
+        method: 'DELETE',
+        headers: {
+          'x-admin-email': (requesterEmail || '').trim().toLowerCase()
+        }
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error occurred while deleting staff.' };
+    }
+  },
+
+  async toggleStaffStatus(
+    id: string,
+    status: 'Active' | 'Inactive',
+    requesterEmail?: string
+  ): Promise<{ success: boolean; message?: string; status?: string; error?: string }> {
+    try {
+      const res = await fetch(`/api/admin/staff/${id}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-email': (requesterEmail || '').trim().toLowerCase()
+        },
+        body: JSON.stringify({
+          status,
+          requesterEmail: (requesterEmail || '').trim().toLowerCase()
+        })
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error occurred while updating staff status.' };
+    }
+  },
+
+  async uploadStaffPhoto(
+    fileData: string,
+    filename: string,
+    mimeType: string,
+    requesterEmail?: string
+  ): Promise<{ success: boolean; message?: string; photoUrl?: string; error?: string }> {
+    try {
+      const res = await fetch('/api/admin/staff/upload-photo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-email': (requesterEmail || '').trim().toLowerCase()
+        },
+        body: JSON.stringify({
+          fileData,
+          filename,
+          mimeType,
+          requesterEmail: (requesterEmail || '').trim().toLowerCase()
+        })
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Unable to upload photo. Please try again.' };
     }
   }
 };

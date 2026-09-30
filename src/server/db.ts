@@ -1,5 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import dotenv from 'dotenv';
+import { INITIAL_STAFF_MEMBERS } from '../data/schoolData.js';
 dotenv.config();
 
 export interface TableSummary {
@@ -28,7 +29,8 @@ export const EXPECTED_TABLES = [
   'dwps_announcements',
   'dwps_newsletter_subscribers',
   'dwps_fee_structures',
-  'dwps_admin_users'
+  'dwps_admin_users',
+  'dwps_staff'
 ];
 
 export const findDatabaseUrl = (): { url: string | null; detectedKey: string | null; availableEnvKeys: string[] } => {
@@ -164,6 +166,12 @@ export async function checkDbConnection(): Promise<DbStatus> {
           return Number(res[0]?.c) || 0;
         } else if (tableName === 'dwps_fee_structures') {
           const res = await sql`SELECT COUNT(*)::int as c FROM dwps_fee_structures`;
+          return Number(res[0]?.c) || 0;
+        } else if (tableName === 'dwps_admin_users') {
+          const res = await sql`SELECT COUNT(*)::int as c FROM dwps_admin_users`;
+          return Number(res[0]?.c) || 0;
+        } else if (tableName === 'dwps_staff') {
+          const res = await sql`SELECT COUNT(*)::int as c FROM dwps_staff`;
           return Number(res[0]?.c) || 0;
         }
       } catch {
@@ -561,6 +569,53 @@ export async function initializeDatabase(): Promise<{ success: boolean; message:
         ON CONFLICT (id) DO NOTHING;
       `;
       log('[NeonDB] ✓ Seeded default administrator accounts.');
+    }
+
+    // 8. Staff and Faculty Directory table
+    await sql`
+      CREATE TABLE IF NOT EXISTS dwps_staff (
+        id VARCHAR(64) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        photo_url TEXT NOT NULL,
+        designation VARCHAR(255) NOT NULL,
+        category VARCHAR(100) DEFAULT 'Faculty',
+        subjects JSONB DEFAULT '[]'::jsonb,
+        skills JSONB DEFAULT '[]'::jsonb,
+        description TEXT,
+        qualification VARCHAR(255),
+        experience VARCHAR(255),
+        display_order INT DEFAULT 0,
+        status VARCHAR(50) DEFAULT 'Active',
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+    log('[NeonDB] ✓ Table verified/created: dwps_staff');
+
+    // Seed default staff members if table is empty
+    const staffCount = await sql`SELECT COUNT(*)::int as count FROM dwps_staff`;
+    if ((staffCount[0]?.count || 0) === 0) {
+      log('[NeonDB] 🌿 Seeding initial faculty & leadership records into dwps_staff...');
+      for (const sm of INITIAL_STAFF_MEMBERS) {
+        await sql`
+          INSERT INTO dwps_staff (
+            id, name, photo_url, designation, category, subjects, skills,
+            description, qualification, experience, display_order, status
+          ) VALUES (
+            ${sm.id}, ${sm.name}, ${sm.photoUrl}, ${sm.designation},
+            ${sm.category || 'Faculty'},
+            ${JSON.stringify(sm.subjects || [])}::jsonb,
+            ${JSON.stringify(sm.skills || [])}::jsonb,
+            ${sm.description || ''},
+            ${sm.qualification || ''},
+            ${sm.experience || ''},
+            ${sm.displayOrder || 0},
+            ${sm.status || 'Active'}
+          )
+          ON CONFLICT (id) DO NOTHING;
+        `;
+      }
+      log(`[NeonDB] ✓ Seeded ${INITIAL_STAFF_MEMBERS.length} faculty and leadership members into dwps_staff.`);
     }
 
     // Retrieve verified list of tables in public schema

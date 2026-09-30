@@ -28,6 +28,7 @@ async function startServer() {
   app.use('/assets/faculty', express.static(path.join(process.cwd(), 'src/assets/images/assets/faculty')));
   app.use('/assets/faculty', express.static(path.join(process.cwd(), 'public/assets/faculty')));
   app.use('/assets', express.static(path.join(process.cwd(), 'public/assets')));
+  app.use('/uploads', express.static(path.join(process.cwd(), 'public/uploads')));
   app.use(express.static(path.join(process.cwd(), 'public')));
 
   if (isDev) {

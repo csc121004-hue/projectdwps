@@ -26,7 +26,6 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
 
   // Recovery / Forgot Password states
   const [recoveryInput, setRecoveryInput] = useState('');
-  const [receivedOtp, setReceivedOtp] = useState('');
   const [enteredOtp, setEnteredOtp] = useState('');
   const [realEmailSent, setRealEmailSent] = useState<boolean | null>(null);
   const [targetRecipientEmail, setTargetRecipientEmail] = useState('dwpsballabgarh@gmail.com');
@@ -173,8 +172,6 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
       setIsLoading(false);
 
       if (resp.success) {
-        const otpCode = resp.otp || '123456';
-        setReceivedOtp(otpCode);
         setRealEmailSent(resp.realEmailSent ?? false);
         setTargetRecipientEmail(resp.sentToEmail || 'dwpsballabgarh@gmail.com');
         setResendTimer(45);
@@ -188,20 +185,13 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
         setErrorMsg(resp.error || 'Institutional ID or email not found in school administrator registry.');
       }
     } catch {
-      // Local fallback
       setIsLoading(false);
-      const otpCode = '123456';
-      setReceivedOtp(otpCode);
-      setRealEmailSent(false);
-      setTargetRecipientEmail('dwpsballabgarh@gmail.com');
-      setResendTimer(45);
-      setView('forgot-otp');
-      setInfoMsg('A 6-digit verification code has been dispatched. Please check your email inbox and spam folder.');
+      setErrorMsg('Failed to connect to recovery server. Please check your network connection.');
     }
   };
 
   // Step 2: Verify OTP
-  const handleVerifyOtp = (e: React.FormEvent) => {
+  const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
@@ -211,12 +201,22 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
       return;
     }
 
-    if (cleanOtp === receivedOtp || cleanOtp === '123456' || (receivedOtp && cleanOtp === receivedOtp.trim())) {
-      setView('forgot-reset');
-      setErrorMsg('');
-      setInfoMsg('Verification successful. Please create your new administrator password.');
-    } else {
-      setErrorMsg('Incorrect verification code. Please check the code sent to your email and try again.');
+    setIsLoading(true);
+
+    try {
+      const resp = await api.verifyOtp(recoveryInput, cleanOtp);
+      setIsLoading(false);
+
+      if (resp.success) {
+        setView('forgot-reset');
+        setErrorMsg('');
+        setInfoMsg('Verification successful. Please create your new administrator password.');
+      } else {
+        setErrorMsg(resp.error || 'Invalid or expired verification code. Please check the code sent to your email.');
+      }
+    } catch (err: any) {
+      setIsLoading(false);
+      setErrorMsg(err?.message || 'Verification failed. Please check the code sent to your email.');
     }
   };
 
@@ -238,18 +238,19 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
     setIsLoading(true);
 
     try {
-      // Save locally
-      localStorage.setItem('dwps_custom_admin_password', newPassword);
-
       // Attempt server sync
-      await api.resetAdminPassword(recoveryInput, enteredOtp || receivedOtp, newPassword);
+      const resp = await api.resetAdminPassword(recoveryInput, enteredOtp, newPassword);
+      setIsLoading(false);
 
+      if (resp.success) {
+        localStorage.setItem('dwps_custom_admin_password', newPassword);
+        setView('forgot-success');
+      } else {
+        setErrorMsg(resp.error || 'Failed to update password. Please check your verification code.');
+      }
+    } catch (err: any) {
       setIsLoading(false);
-      setView('forgot-success');
-    } catch {
-      localStorage.setItem('dwps_custom_admin_password', newPassword);
-      setIsLoading(false);
-      setView('forgot-success');
+      setErrorMsg(err?.message || 'Failed to update password. Please try again.');
     }
   };
 

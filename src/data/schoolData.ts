@@ -50,12 +50,38 @@ export interface TeamMember {
   id: string;
   name: string;
   role: string;
+  designation?: string;
   category: 'Leadership' | 'Faculty';
   imageUrl: string;
+  photoUrl?: string;
   description?: string;
   qualifications?: string;
+  qualification?: string;
   experience?: string;
   subjects?: string[];
+  skills?: string[];
+  displayOrder?: number;
+  status?: 'Active' | 'Inactive';
+}
+
+export interface StaffMember {
+  id: string;
+  name: string;
+  photoUrl: string;
+  imageUrl?: string;
+  designation: string;
+  role?: string;
+  category?: 'Leadership' | 'Faculty';
+  subjects?: string[];
+  skills?: string[];
+  description?: string;
+  qualification?: string;
+  qualifications?: string;
+  experience?: string;
+  displayOrder: number;
+  status: 'Active' | 'Inactive';
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export const SCHOOL_INFO = {
@@ -195,6 +221,183 @@ export const TEAM_MEMBERS: TeamMember[] = [
     subjects: ['Early Childhood Literacy', 'Phonics & Vocabulary', 'Creative Storytelling']
   }
 ];
+
+export const INITIAL_STAFF_MEMBERS: StaffMember[] = [
+  {
+    id: 'charan-singh-ghanghas',
+    name: 'Ch. Charan Singh Ghanghas',
+    photoUrl: 'https://assets.zyrosite.com/cdn-cgi/image/format=auto,w=768,fit=crop/UmKLUfDB0p4bPZYE/gemini_generated_image_c7ggdic7ggdic7gg-rjE3nTZVAfXcxWy4.png',
+    designation: 'Chairman',
+    category: 'Leadership',
+    description: 'Visionary leadership guiding Disney World Public School with values of ethical education, discipline, and community upliftment in Ballabgarh.',
+    qualification: 'Institutional Patron & Community Leader',
+    experience: 'Decades of community service & educational advocacy',
+    subjects: [],
+    skills: ['Institutional Governance', 'Community Outreach', 'Ethical Leadership'],
+    displayOrder: 1,
+    status: 'Active'
+  },
+  {
+    id: 'rahul-chaudhary',
+    name: 'Mr. Rahul Chaudhary',
+    photoUrl: 'https://assets.zyrosite.com/cdn-cgi/image/format=auto,w=768,fit=crop/UmKLUfDB0p4bPZYE/img_20250521_080047-TBvk3l0f6rlrIpn9.jpg',
+    designation: 'Founder / Director',
+    category: 'Leadership',
+    description: 'Pioneering modern, child-centered schooling in Subhash Colony, ensuring state-of-the-art facilities, compassionate pedagogy, and constant faculty growth.',
+    qualification: 'Post Graduate in Educational Administration',
+    experience: '12+ Years in School Leadership & Academic Management',
+    subjects: [],
+    skills: ['Academic Strategy', 'Curriculum Design', 'Child Psychology', 'School Administration'],
+    displayOrder: 2,
+    status: 'Active'
+  },
+  {
+    id: 'neelam',
+    name: 'Ms. Neelam',
+    photoUrl: 'https://assets.zyrosite.com/cdn-cgi/image/format=auto,w=768,fit=crop/UmKLUfDB0p4bPZYE/gemini_generated_image_smyx6ksmyx6ksmyx-Yc5UrttjvLJ6k33X.png',
+    designation: 'Principal & Co-Founder',
+    category: 'Leadership',
+    description: 'Dedicated to cultivating academic excellence, character building, and individual mentorship for every student from early foundation to grade school.',
+    qualification: 'M.A., B.Ed., Educational Leadership Certified',
+    experience: '15+ Years in Pedagogy & Curriculum Innovation',
+    subjects: [],
+    skills: ['Pedagogical Leadership', 'Early Childhood Development', 'Holistic Mentorship'],
+    displayOrder: 3,
+    status: 'Active'
+  },
+  {
+    id: 'anuradha',
+    name: 'Ms. Anuradha',
+    photoUrl: '/assets/faculty/anuradha.jpg?v=3',
+    designation: 'Early Childhood Educator',
+    category: 'Faculty',
+    description: 'Inspiring young learners with interactive classroom instruction, language fluency development, and engaging experiential activities.',
+    qualification: 'B.A., B.Ed.',
+    experience: '6+ Years in Early Childhood Education',
+    subjects: ['Early Childhood Literacy', 'Language Arts', 'Environmental Studies', 'Social Skills'],
+    skills: ['Storytelling', 'Phonics', 'Creative Learning', 'Classroom Activities'],
+    displayOrder: 4,
+    status: 'Active'
+  },
+  {
+    id: 'bhavna',
+    name: 'Ms. Bhavna',
+    photoUrl: '/assets/faculty/bhavna.jpg?v=3',
+    designation: 'Teacher',
+    category: 'Faculty',
+    description: 'Fostering joyful foundational learning through interactive literacy activities, logic exercises, and hands-on creative crafts.',
+    qualification: 'B.Sc., B.Ed.',
+    experience: '5+ Years in Elementary Education',
+    subjects: ['Early Childhood Literacy', 'Logic', 'Puzzles', 'Art & Craft'],
+    skills: ['Interactive Numeracy', 'Hands-on Crafts', 'Foundational Reading'],
+    displayOrder: 5,
+    status: 'Active'
+  },
+  {
+    id: 'mamta',
+    name: 'Ms. Mamta',
+    photoUrl: '/assets/faculty/mamta.jpg?v=3',
+    designation: 'Teacher',
+    category: 'Faculty',
+    description: 'Specializing in early childhood cognitive and motor development, phonics mastery, and creative storytelling in a nurturing atmosphere.',
+    qualification: 'N.T.T., B.A.',
+    experience: '7+ Years in Nursery & Kindergarten',
+    subjects: ['Early Childhood Literacy', 'Phonics', 'Creative Expression'],
+    skills: ['Phonics Mastery', 'Creative Storytelling', 'Motor Skills Development'],
+    displayOrder: 6,
+    status: 'Active'
+  },
+  {
+    id: 'anjali',
+    name: 'Ms. Anjali',
+    photoUrl: ANJALI_PHOTO_DATA,
+    designation: 'Teacher',
+    category: 'Faculty',
+    description: 'Dedicated mathematics educator demystifying numbers, cultivating logical reasoning, mental math agility, and real-world problem-solving.',
+    qualification: 'B.Sc. (Mathematics), B.Ed.',
+    experience: '8+ Years in Mathematics & Logic',
+    subjects: ['Mathematics', 'Mental Math', 'Logical Reasoning'],
+    skills: ['Mental Math Agility', 'Logical Reasoning', 'STEM Problem Solving'],
+    displayOrder: 7,
+    status: 'Active'
+  },
+  {
+    id: 'krishna',
+    name: 'Ms. Krishna',
+    photoUrl: 'https://assets.zyrosite.com/cdn-cgi/image/format=auto,w=768,fit=crop/UmKLUfDB0p4bPZYE/gemini_generated_image_gxwwckgxwwckgxww-k6zuK3wqEC0Lixia.png',
+    designation: 'Teacher',
+    category: 'Faculty',
+    description: 'Guiding primary students through interactive multimedia smart classroom lessons and encouraging holistic participation in school fests.',
+    qualification: 'B.Com., B.Ed.',
+    experience: '5+ Years in Primary Pedagogy',
+    subjects: ['English Comprehension', 'Social Studies', 'Digital Lessons'],
+    skills: ['Multimedia Learning', 'Social Science Inquiry', 'Speech Mentorship'],
+    displayOrder: 8,
+    status: 'Active'
+  },
+  {
+    id: 'neha',
+    name: 'Ms. Neha',
+    photoUrl: NEHA_PHOTO_DATA,
+    designation: 'Teacher',
+    category: 'Faculty',
+    description: 'Integrating environmental awareness with foundational digital literacy, teaching students respect for nature alongside computer fundamentals and IT skills.',
+    qualification: 'B.C.A., B.Ed.',
+    experience: '6+ Years in Digital & Science Education',
+    subjects: ['EVS & Computer', 'Environmental Studies', 'Computer Fundamentals'],
+    skills: ['Coding Fundamentals', 'Environmental Science', 'Interactive Lab Work'],
+    displayOrder: 9,
+    status: 'Active'
+  },
+  {
+    id: 'geeta',
+    name: 'Ms. Geeta',
+    photoUrl: GEETA_PHOTO_DATA,
+    designation: 'Teacher',
+    category: 'Faculty',
+    description: 'Guiding UKG learners through foundational early childhood literacy, systematic phonics, speech clarity, and joyous expressive learning.',
+    qualification: 'N.T.T., B.A., Early Childhood Education Specialist',
+    experience: '9+ Years in Kindergarten Transition',
+    subjects: ['UKG', 'Early Childhood Literacy', 'Phonics'],
+    skills: ['Speech Clarity', 'Systematic Phonics', 'Grade 1 Readiness'],
+    displayOrder: 10,
+    status: 'Active'
+  },
+  {
+    id: 'pavitra',
+    name: 'Ms. Pavitra',
+    photoUrl: PAVITRA_PHOTO_DATA,
+    designation: 'Teacher',
+    category: 'Faculty',
+    description: 'Dedicated early childhood educator cultivating foundational literacy, joyful vocabulary building, storytelling confidence, and phonics mastery.',
+    qualification: 'N.T.T., B.A., Early Childhood Education Certified',
+    experience: '6+ Years in Pre-Primary Literacy',
+    subjects: ['Early Childhood Literacy', 'Phonics & Vocabulary', 'Creative Storytelling'],
+    skills: ['Vocabulary Expansion', 'Storytelling Confidence', 'Rhyme & Rhythm'],
+    displayOrder: 11,
+    status: 'Active'
+  }
+];
+
+export function mapStaffToTeamMember(staff: StaffMember): TeamMember {
+  return {
+    id: staff.id,
+    name: staff.name,
+    role: staff.designation || staff.role || 'Teacher',
+    designation: staff.designation,
+    category: staff.category || 'Faculty',
+    imageUrl: staff.photoUrl || staff.imageUrl || '/assets/faculty/anuradha.jpg',
+    photoUrl: staff.photoUrl,
+    description: staff.description || '',
+    qualifications: staff.qualification || staff.qualifications || '',
+    qualification: staff.qualification,
+    experience: staff.experience || '',
+    subjects: staff.subjects || [],
+    skills: staff.skills || [],
+    displayOrder: staff.displayOrder,
+    status: staff.status
+  };
+}
 
 export const HOTLINK_IMAGES = {
   crestLogo: '/assets/dwps_logo.svg',

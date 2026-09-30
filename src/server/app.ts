@@ -1,12 +1,16 @@
 import express from 'express';
+import fs from 'fs';
+import path from 'path';
 import nodemailer from 'nodemailer';
 import { google } from 'googleapis';
 import { getSql, checkDbConnection, initializeDatabase, isDatabaseConfigured } from './db.js';
-import { GRADE_FEE_STRUCTURES } from '../data/schoolData.js';
+import { GRADE_FEE_STRUCTURES, INITIAL_STAFF_MEMBERS, StaffMember } from '../data/schoolData.js';
 
 export const app = express();
 
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+app.use('/uploads', express.static(path.join(process.cwd(), 'public/uploads')));
 
 // Enable CORS for custom domain live deployment (e.g. https://www.dwpsballabgarh.org)
 app.use((_req, res, next) => {
@@ -1396,4 +1400,512 @@ app.post('/api/fees/reset', async (_req, res) => {
     console.error('[NeonDB] ❌ [POST /api/fees/reset] Error resetting fees:', err);
     return res.status(500).json({ error: 'Failed to reset fees', details: err?.message });
   }
+});
+
+// ============================================================================
+// 10. STAFF MANAGEMENT SYSTEM (Neon PostgreSQL & School Admin Authentication)
+// ============================================================================
+
+let inMemoryStaff: StaffMember[] = [...INITIAL_STAFF_MEMBERS];
+
+function verifyAdminAuth(req: express.Request): { authorized: boolean; email: string } {
+  const requester = (
+    req.headers['x-admin-email'] ||
+    req.headers['authorization']?.replace(/^Bearer\s+/i, '') ||
+    req.query.adminEmail ||
+    req.body?.requesterEmail ||
+    ''
+  ).toString().trim().toLowerCase();
+
+  if (!requester) {
+    return { authorized: false, email: '' };
+  }
+
+  if (
+    requester === 'dwpsballabgarh@gmail.com' ||
+    requester === 'rahul@dwpsballabgarh.org' ||
+    requester === 'dwpsballabgarh' ||
+    inMemoryAdminUsers.some(u => u.email.toLowerCase() === requester || u.userId.toLowerCase() === requester)
+  ) {
+    return { authorized: true, email: requester };
+  }
+
+  return { authorized: false, email: requester };
+}
+
+function mapDbRowToStaff(row: any): StaffMember {
+  let subjects: string[] = [];
+  try {
+    subjects = Array.isArray(row.subjects) ? row.subjects : JSON.parse(row.subjects || '[]');
+  } catch {
+    subjects = [];
+  }
+
+  let skills: string[] = [];
+  try {
+    skills = Array.isArray(row.skills) ? row.skills : JSON.parse(row.skills || '[]');
+  } catch {
+    skills = [];
+  }
+
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    photoUrl: String(row.photo_url || ''),
+    imageUrl: String(row.photo_url || ''),
+    designation: String(row.designation || 'Teacher'),
+    role: String(row.designation || 'Teacher'),
+    category: (row.category as 'Leadership' | 'Faculty') || 'Faculty',
+    subjects,
+    skills,
+    description: String(row.description || ''),
+    qualification: String(row.qualification || ''),
+    qualifications: String(row.qualification || ''),
+    experience: String(row.experience || ''),
+    displayOrder: typeof row.display_order === 'number' ? row.display_order : Number(row.display_order) || 0,
+    status: (row.status as 'Active' | 'Inactive') || 'Active',
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : undefined,
+    updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : undefined
+  };
+}
+
+// 10a. Public Staff Directory (Active members only, ordered by display_order ASC)
+app.get('/api/staff', async (_req, res) => {
+  await ensureDbInit();
+  const sql = getSql();
+  if (sql) {
+    try {
+      const rows = await sql`
+        SELECT * FROM dwps_staff 
+        WHERE status = 'Active' 
+        ORDER BY display_order ASC, created_at ASC
+      `;
+      if (rows && rows.length > 0) {
+        return res.json({ success: true, source: 'neon', data: rows.map(mapDbRowToStaff) });
+      }
+    } catch (err) {
+      console.warn('[Staff API] Neon query error, falling back to local memory:', err);
+    }
+  }
+
+  const activeStaff = inMemoryStaff
+    .filter(s => s.status === 'Active')
+    .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+
+  return res.json({ success: true, source: 'local', data: activeStaff });
+});
+
+// 10b. Admin Staff Directory (All members, protected)
+app.get('/api/admin/staff', async (req, res) => {
+  const auth = verifyAdminAuth(req);
+  if (!auth.authorized) {
+    return res.status(401).json({
+      success: false,
+      error: 'Authorization error: School Admin credentials required.'
+    });
+  }
+
+  await ensureDbInit();
+  const sql = getSql();
+  if (sql) {
+    try {
+      const rows = await sql`
+        SELECT * FROM dwps_staff 
+        WHERE status != 'deleted' 
+        ORDER BY display_order ASC, created_at ASC
+      `;
+      if (rows && rows.length > 0) {
+        return res.json({ success: true, source: 'neon', data: rows.map(mapDbRowToStaff) });
+      }
+    } catch (err) {
+      console.warn('[Staff Admin API] Neon query error, falling back to local memory:', err);
+    }
+  }
+
+  const allStaff = [...inMemoryStaff]
+    .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+
+  return res.json({ success: true, source: 'local', data: allStaff });
+});
+
+// 10c. Upload Staff Photo (Exact uploaded file from admin computer, stored persistently)
+app.post('/api/admin/staff/upload-photo', async (req, res) => {
+  const auth = verifyAdminAuth(req);
+  if (!auth.authorized) {
+    return res.status(401).json({
+      success: false,
+      error: 'Authorization error: School Admin credentials required to upload photos.'
+    });
+  }
+
+  try {
+    const { filename, fileData, mimeType } = req.body || {};
+    if (!fileData || typeof fileData !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'Unable to upload photo. Please select an image file.'
+      });
+    }
+
+    // Validate MIME type
+    const validMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+    const detectedMime = (mimeType || '').toLowerCase();
+    if (detectedMime && !validMimes.includes(detectedMime)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Unable to upload photo. Please upload a valid image file (JPEG, PNG, WebP).'
+      });
+    }
+
+    // Determine extension
+    let extension = 'jpg';
+    if (detectedMime.includes('png')) extension = 'png';
+    else if (detectedMime.includes('webp')) extension = 'webp';
+    else if (detectedMime.includes('gif')) extension = 'gif';
+
+    let base64Content = fileData;
+    if (fileData.startsWith('data:')) {
+      const match = fileData.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+      if (match) {
+        if (match[1] === 'jpeg' || match[1] === 'jpg') extension = 'jpg';
+        else if (match[1] === 'png') extension = 'png';
+        else if (match[1] === 'webp') extension = 'webp';
+        else if (match[1] === 'gif') extension = 'gif';
+        base64Content = match[2];
+      } else {
+        const commaIdx = fileData.indexOf(',');
+        if (commaIdx !== -1) {
+          base64Content = fileData.substring(commaIdx + 1);
+        }
+      }
+    }
+
+    const buffer = Buffer.from(base64Content, 'base64');
+
+    // Validate file size (max 5MB)
+    const MAX_SIZE = 5 * 1024 * 1024;
+    if (buffer.length > MAX_SIZE) {
+      return res.status(400).json({
+        success: false,
+        error: `Unable to upload photo. File size exceeds 5MB limit (${(buffer.length / (1024 * 1024)).toFixed(1)}MB).`
+      });
+    }
+
+    // Ensure uploads directory exists
+    const uploadsDir = path.join(process.cwd(), 'public/uploads/staff');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    // Unique safe filename
+    const cleanOrigName = (filename || 'photo')
+      .replace(/\.[^/.]+$/, '')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .substring(0, 30);
+    const uniqueName = `staff_${Date.now()}_${cleanOrigName}.${extension}`;
+    const filePath = path.join(uploadsDir, uniqueName);
+
+    fs.writeFileSync(filePath, buffer);
+    console.log(`[Staff Photo] 📸 Saved uploaded photo: ${filePath} (${buffer.length} bytes)`);
+
+    const publicUrl = `/uploads/staff/${uniqueName}`;
+
+    return res.status(200).json({
+      success: true,
+      message: 'Photo uploaded successfully.',
+      photoUrl: publicUrl
+    });
+  } catch (err: any) {
+    console.error('[Staff Photo] Upload error:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'Unable to upload photo. Please try again.'
+    });
+  }
+});
+
+// 10d. Serve Uploaded Staff Photo Direct Stream
+app.get('/api/staff/photo/:filename', (req, res) => {
+  const filename = path.basename(req.params.filename);
+  const filePath = path.join(process.cwd(), 'public/uploads/staff', filename);
+  if (fs.existsSync(filePath)) {
+    return res.sendFile(filePath);
+  }
+  return res.status(404).send('Image not found');
+});
+
+// 10e. Create Staff Member (Protected, with validation)
+app.post('/api/admin/staff', async (req, res) => {
+  const auth = verifyAdminAuth(req);
+  if (!auth.authorized) {
+    return res.status(401).json({
+      success: false,
+      error: 'Authorization error: School Admin credentials required.'
+    });
+  }
+
+  const {
+    name,
+    photoUrl,
+    designation,
+    category,
+    subjects,
+    skills,
+    description,
+    qualification,
+    experience,
+    displayOrder,
+    status
+  } = req.body || {};
+
+  if (!name || typeof name !== 'string' || !name.trim()) {
+    return res.status(400).json({ success: false, error: 'Staff Name is required.' });
+  }
+
+  if (!photoUrl || typeof photoUrl !== 'string' || !photoUrl.trim()) {
+    return res.status(400).json({ success: false, error: 'Photo is required when creating a new staff member.' });
+  }
+
+  const cleanName = name.trim();
+  const cleanDesignation = (designation || 'Faculty Member').trim();
+  const cleanPhotoUrl = photoUrl.trim();
+  const cleanCategory = (category === 'Leadership' ? 'Leadership' : 'Faculty') as 'Leadership' | 'Faculty';
+  const cleanSubjects = Array.isArray(subjects) ? subjects : [];
+  const cleanSkills = Array.isArray(skills) ? skills : [];
+  const cleanDescription = (description || '').trim();
+  const cleanQualification = (qualification || '').trim();
+  const cleanExperience = (experience || '').trim();
+  const parsedOrder = typeof displayOrder === 'number' ? displayOrder : parseInt(displayOrder, 10) || 0;
+  const cleanStatus = (status === 'Inactive' ? 'Inactive' : 'Active') as 'Active' | 'Inactive';
+
+  const newId = `staff-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
+  const now = new Date().toISOString();
+
+  const newStaff: StaffMember = {
+    id: newId,
+    name: cleanName,
+    photoUrl: cleanPhotoUrl,
+    imageUrl: cleanPhotoUrl,
+    designation: cleanDesignation,
+    role: cleanDesignation,
+    category: cleanCategory,
+    subjects: cleanSubjects,
+    skills: cleanSkills,
+    description: cleanDescription,
+    qualification: cleanQualification,
+    qualifications: cleanQualification,
+    experience: cleanExperience,
+    displayOrder: parsedOrder,
+    status: cleanStatus,
+    createdAt: now,
+    updatedAt: now
+  };
+
+  await ensureDbInit();
+  const sql = getSql();
+  if (sql) {
+    try {
+      await sql`
+        INSERT INTO dwps_staff (
+          id, name, photo_url, designation, category, subjects, skills,
+          description, qualification, experience, display_order, status, created_at, updated_at
+        ) VALUES (
+          ${newId}, ${cleanName}, ${cleanPhotoUrl}, ${cleanDesignation}, ${cleanCategory},
+          ${JSON.stringify(cleanSubjects)}::jsonb,
+          ${JSON.stringify(cleanSkills)}::jsonb,
+          ${cleanDescription}, ${cleanQualification}, ${cleanExperience},
+          ${parsedOrder}, ${cleanStatus}, ${now}, ${now}
+        );
+      `;
+      console.log(`[NeonDB] ✅ [POST /api/admin/staff] Created staff: ${cleanName} (${newId})`);
+    } catch (err: any) {
+      console.error('[NeonDB] ❌ [POST /api/admin/staff] DB error:', err);
+    }
+  }
+
+  inMemoryStaff.push(newStaff);
+
+  return res.status(201).json({
+    success: true,
+    message: 'Staff member added successfully.',
+    staff: newStaff
+  });
+});
+
+// 10f. Update Staff Member (Protected, preserves photo if none provided)
+app.put('/api/admin/staff/:id', async (req, res) => {
+  const auth = verifyAdminAuth(req);
+  if (!auth.authorized) {
+    return res.status(401).json({
+      success: false,
+      error: 'Authorization error: School Admin credentials required.'
+    });
+  }
+
+  const { id } = req.params;
+  const existing = inMemoryStaff.find(s => s.id === id);
+
+  const {
+    name,
+    photoUrl,
+    designation,
+    category,
+    subjects,
+    skills,
+    description,
+    qualification,
+    experience,
+    displayOrder,
+    status
+  } = req.body || {};
+
+  if (!name || typeof name !== 'string' || !name.trim()) {
+    return res.status(400).json({ success: false, error: 'Staff Name is required.' });
+  }
+
+  const cleanName = name.trim();
+  const cleanDesignation = (designation || 'Faculty Member').trim();
+  const finalPhotoUrl = (photoUrl && photoUrl.trim()) ? photoUrl.trim() : (existing?.photoUrl || '/assets/faculty/anuradha.jpg');
+  const cleanCategory = (category === 'Leadership' ? 'Leadership' : 'Faculty') as 'Leadership' | 'Faculty';
+  const cleanSubjects = Array.isArray(subjects) ? subjects : [];
+  const cleanSkills = Array.isArray(skills) ? skills : [];
+  const cleanDescription = (description || '').trim();
+  const cleanQualification = (qualification || '').trim();
+  const cleanExperience = (experience || '').trim();
+  const parsedOrder = typeof displayOrder === 'number' ? displayOrder : parseInt(displayOrder, 10) || 0;
+  const cleanStatus = (status === 'Inactive' ? 'Inactive' : 'Active') as 'Active' | 'Inactive';
+  const now = new Date().toISOString();
+
+  const updatedStaff: StaffMember = {
+    id,
+    name: cleanName,
+    photoUrl: finalPhotoUrl,
+    imageUrl: finalPhotoUrl,
+    designation: cleanDesignation,
+    role: cleanDesignation,
+    category: cleanCategory,
+    subjects: cleanSubjects,
+    skills: cleanSkills,
+    description: cleanDescription,
+    qualification: cleanQualification,
+    qualifications: cleanQualification,
+    experience: cleanExperience,
+    displayOrder: parsedOrder,
+    status: cleanStatus,
+    updatedAt: now
+  };
+
+  await ensureDbInit();
+  const sql = getSql();
+  if (sql) {
+    try {
+      await sql`
+        UPDATE dwps_staff SET
+          name = ${cleanName},
+          photo_url = ${finalPhotoUrl},
+          designation = ${cleanDesignation},
+          category = ${cleanCategory},
+          subjects = ${JSON.stringify(cleanSubjects)}::jsonb,
+          skills = ${JSON.stringify(cleanSkills)}::jsonb,
+          description = ${cleanDescription},
+          qualification = ${cleanQualification},
+          experience = ${cleanExperience},
+          display_order = ${parsedOrder},
+          status = ${cleanStatus},
+          updated_at = ${now}
+        WHERE id = ${id};
+      `;
+      console.log(`[NeonDB] ✅ [PUT /api/admin/staff/:id] Updated staff: ${cleanName} (${id})`);
+    } catch (err: any) {
+      console.error('[NeonDB] ❌ [PUT /api/admin/staff/:id] DB error:', err);
+    }
+  }
+
+  const idx = inMemoryStaff.findIndex(s => s.id === id);
+  if (idx !== -1) {
+    inMemoryStaff[idx] = { ...inMemoryStaff[idx], ...updatedStaff };
+  } else {
+    inMemoryStaff.push(updatedStaff);
+  }
+
+  return res.json({
+    success: true,
+    message: 'Staff member updated successfully.',
+    staff: updatedStaff
+  });
+});
+
+// 10g. Delete Staff Member (Protected, soft-delete to Inactive)
+app.delete('/api/admin/staff/:id', async (req, res) => {
+  const auth = verifyAdminAuth(req);
+  if (!auth.authorized) {
+    return res.status(401).json({
+      success: false,
+      error: 'Authorization error: School Admin credentials required.'
+    });
+  }
+
+  const { id } = req.params;
+  const isPermanent = req.query.permanent === 'true';
+
+  await ensureDbInit();
+  const sql = getSql();
+  if (sql) {
+    try {
+      if (isPermanent) {
+        await sql`DELETE FROM dwps_staff WHERE id = ${id}`;
+      } else {
+        await sql`UPDATE dwps_staff SET status = 'Inactive', updated_at = NOW() WHERE id = ${id}`;
+      }
+      console.log(`[NeonDB] ✅ [DELETE /api/admin/staff/:id] Removed/Deactivated staff (${id})`);
+    } catch (err: any) {
+      console.error('[NeonDB] ❌ [DELETE /api/admin/staff/:id] DB error:', err);
+    }
+  }
+
+  if (isPermanent) {
+    inMemoryStaff = inMemoryStaff.filter(s => s.id !== id);
+  } else {
+    const s = inMemoryStaff.find(st => st.id === id);
+    if (s) s.status = 'Inactive';
+  }
+
+  return res.json({
+    success: true,
+    message: 'Staff member deleted successfully.'
+  });
+});
+
+// 10h. Toggle Staff Status (Active / Inactive)
+app.patch('/api/admin/staff/:id/status', async (req, res) => {
+  const auth = verifyAdminAuth(req);
+  if (!auth.authorized) {
+    return res.status(401).json({
+      success: false,
+      error: 'Authorization error: School Admin credentials required.'
+    });
+  }
+
+  const { id } = req.params;
+  const { status } = req.body || {};
+  const targetStatus = status === 'Inactive' ? 'Inactive' : 'Active';
+
+  await ensureDbInit();
+  const sql = getSql();
+  if (sql) {
+    try {
+      await sql`UPDATE dwps_staff SET status = ${targetStatus}, updated_at = NOW() WHERE id = ${id}`;
+    } catch (err: any) {
+      console.error('[NeonDB] Status toggle error:', err);
+    }
+  }
+
+  const s = inMemoryStaff.find(st => st.id === id);
+  if (s) s.status = targetStatus;
+
+  return res.json({
+    success: true,
+    message: `Staff status changed to ${targetStatus}.`,
+    status: targetStatus
+  });
 });

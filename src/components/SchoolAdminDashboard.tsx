@@ -11,6 +11,7 @@ import { SchoolLogo } from './SchoolLogo';
 import { AnnouncementsManager } from './AnnouncementsManager';
 import { NeonDbStatusModal } from './NeonDbStatusModal';
 import { FeeManager } from './FeeManager';
+import { StaffManager } from './StaffManager';
 import { api, InstitutionalUser } from '../services/api';
 import {
   PeriodicBackupModal,
@@ -48,7 +49,7 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
   onLogout,
   onBackToWebsite,
 }) => {
-  const [activeTab, setActiveTab] = useState<'inquiries' | 'fees' | 'announcements' | 'newsletters' | 'accounts'>('inquiries');
+  const [activeTab, setActiveTab] = useState<'inquiries' | 'fees' | 'announcements' | 'newsletters' | 'staff' | 'accounts'>('inquiries');
 
   // Inquiries Filters
   const [inquirySearch, setInquirySearch] = useState('');
@@ -791,6 +792,21 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
           </button>
 
           <button
+            onClick={() => setActiveTab('staff')}
+            className={`py-3 px-4 text-xs font-bold transition-all border-b-2 cursor-pointer flex items-center gap-2 ${
+              activeTab === 'staff'
+                ? 'border-[#fe932c] text-[#fe932c]'
+                : 'border-transparent text-[#8396b9] hover:text-white'
+            }`}
+          >
+            <span className="material-symbols-outlined text-lg">badge</span>
+            <span>Staff Management</span>
+            <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 text-[10px] font-mono font-bold">
+              Faculty
+            </span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('accounts')}
             className={`py-3 px-4 text-xs font-bold transition-all border-b-2 cursor-pointer flex items-center gap-2 ${
               activeTab === 'accounts'
@@ -1357,6 +1373,16 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* ===================== TAB: STAFF & FACULTY MANAGEMENT ===================== */}
+        {activeTab === 'staff' && (
+          <div className="space-y-6 animate-fadeIn">
+            <StaffManager
+              currentUser={currentUser}
+              onBackToWebsite={onBackToWebsite}
+            />
           </div>
         )}
 

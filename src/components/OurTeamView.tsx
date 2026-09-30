@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { TEAM_MEMBERS, TeamMember, SCHOOL_INFO } from '../data/schoolData';
+import React, { useState, useEffect } from 'react';
+import { TEAM_MEMBERS, TeamMember, SCHOOL_INFO, mapStaffToTeamMember } from '../data/schoolData';
+import { api } from '../services/api';
 
 interface OurTeamViewProps {
   onBookTourClick: () => void;
@@ -7,15 +8,35 @@ interface OurTeamViewProps {
 }
 
 export const OurTeamView: React.FC<OurTeamViewProps> = ({ onBookTourClick, onApplyClick }) => {
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(TEAM_MEMBERS);
   const [selectedFilter, setSelectedFilter] = useState<'All' | 'Leadership' | 'Faculty'>('All');
   const [activeMemberModal, setActiveMemberModal] = useState<TeamMember | null>(null);
 
-  const filteredMembers = selectedFilter === 'All'
-    ? TEAM_MEMBERS
-    : TEAM_MEMBERS.filter((m) => m.category === selectedFilter);
+  // Load active staff members from database
+  useEffect(() => {
+    let isMounted = true;
+    api.getStaff()
+      .then((res) => {
+        if (isMounted && res.success && res.data && res.data.length > 0) {
+          const mapped = res.data.map(mapStaffToTeamMember);
+          setTeamMembers(mapped);
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load staff from database, using cached staff list:', err);
+      });
 
-  const leadershipMembers = TEAM_MEMBERS.filter((m) => m.category === 'Leadership');
-  const facultyMembers = TEAM_MEMBERS.filter((m) => m.category === 'Faculty');
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const filteredMembers = selectedFilter === 'All'
+    ? teamMembers
+    : teamMembers.filter((m) => m.category === selectedFilter);
+
+  const leadershipMembers = teamMembers.filter((m) => m.category === 'Leadership');
+  const facultyMembers = teamMembers.filter((m) => m.category !== 'Leadership');
 
   return (
     <div className="py-12 bg-[#f7f9ff]">
@@ -81,7 +102,7 @@ export const OurTeamView: React.FC<OurTeamViewProps> = ({ onBookTourClick, onApp
               >
                 {filter === 'All' ? 'All Team Members' : filter} ({
                   filter === 'All'
-                    ? TEAM_MEMBERS.length
+                    ? teamMembers.length
                     : filter === 'Leadership'
                     ? leadershipMembers.length
                     : facultyMembers.length
@@ -210,7 +231,7 @@ export const OurTeamView: React.FC<OurTeamViewProps> = ({ onBookTourClick, onApp
                         {member.description}
                       </p>
 
-                      {member.subjects && (
+                      {member.subjects && member.subjects.length > 0 && (
                         <div className="pt-2 flex flex-wrap gap-1.5">
                           {member.subjects.map((sub, idx) => (
                             <span
@@ -218,6 +239,19 @@ export const OurTeamView: React.FC<OurTeamViewProps> = ({ onBookTourClick, onApp
                               className="px-2 py-0.5 rounded bg-[#F2F8FD] text-[#021936] text-[10px] font-semibold border border-[#dce3ec]"
                             >
                               {sub}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {member.skills && member.skills.length > 0 && (
+                        <div className="pt-1 flex flex-wrap gap-1.5">
+                          {member.skills.map((skill, idx) => (
+                            <span
+                              key={idx}
+                              className="px-2 py-0.5 rounded bg-amber-50/70 text-amber-950 text-[10px] font-semibold border border-amber-200"
+                            >
+                              {skill}
                             </span>
                           ))}
                         </div>
@@ -340,7 +374,7 @@ export const OurTeamView: React.FC<OurTeamViewProps> = ({ onBookTourClick, onApp
                 </div>
               )}
 
-              {activeMemberModal.subjects && (
+              {activeMemberModal.subjects && activeMemberModal.subjects.length > 0 && (
                 <div>
                   <span className="text-xs font-bold text-[#021936] uppercase tracking-wider block mb-1.5">
                     Areas of Instruction:
@@ -349,6 +383,21 @@ export const OurTeamView: React.FC<OurTeamViewProps> = ({ onBookTourClick, onApp
                     {activeMemberModal.subjects.map((s, idx) => (
                       <span key={idx} className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-800 text-xs font-medium">
                         {s}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {activeMemberModal.skills && activeMemberModal.skills.length > 0 && (
+                <div>
+                  <span className="text-xs font-bold text-[#021936] uppercase tracking-wider block mb-1.5">
+                    Skills &amp; Methodologies:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {activeMemberModal.skills.map((sk, idx) => (
+                      <span key={idx} className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-900 border border-amber-200 text-xs font-medium">
+                        {sk}
                       </span>
                     ))}
                   </div>
