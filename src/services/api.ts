@@ -336,6 +336,61 @@ export const api = {
     }
   },
 
+  async updateAdminUser(
+    id: string,
+    userData: {
+      name?: string;
+      email?: string;
+      userId?: string;
+      mobile?: string;
+      designation?: string;
+      password?: string;
+      role?: string;
+      status?: string;
+    },
+    requesterEmail?: string
+  ): Promise<{ success: boolean; message?: string; user?: InstitutionalUser; error?: string; passwordChanged?: boolean }> {
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-email': (requesterEmail || '').trim().toLowerCase()
+        },
+        body: JSON.stringify({
+          ...userData,
+          requesterEmail: (requesterEmail || '').trim().toLowerCase()
+        })
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error occurred.' };
+    }
+  },
+
+  async updateAdminUserPassword(
+    id: string,
+    newPassword: string,
+    requesterEmail?: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    try {
+      const res = await fetch(`/api/admin/users/${id}/password`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-email': (requesterEmail || '').trim().toLowerCase()
+        },
+        body: JSON.stringify({
+          newPassword,
+          requesterEmail: (requesterEmail || '').trim().toLowerCase()
+        })
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Network error occurred.' };
+    }
+  },
+
   // Staff Management API Methods
   async getStaff(): Promise<{ success: boolean; source?: string; data?: StaffMember[]; error?: string }> {
     try {

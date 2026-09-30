@@ -82,6 +82,7 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
       normalizedPw = cleanString(normalizedPw.substring(1));
     }
 
+    let serverErrorMessage = '';
     try {
       const serverRes = await api.loginAdmin(loginId, password);
       if (serverRes && serverRes.success && serverRes.user) {
@@ -99,6 +100,8 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
         onLoginSuccess(user);
         onClose();
         return;
+      } else if (serverRes && !serverRes.success && serverRes.error) {
+        serverErrorMessage = serverRes.error;
       }
     } catch {
       // Proceed to local fallback check
@@ -113,6 +116,17 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
       normalizedId === 'rahul' ||
       normalizedId === 'rahul@dwpsballabgarh' ||
       normalizedId === 'csc121004@gmail.com';
+
+    // Also check cached created institutional users for local fallback
+    let cachedUser: any = null;
+    try {
+      const cachedList = JSON.parse(localStorage.getItem('dwps_admin_users_cache') || '[]');
+      cachedUser = cachedList.find(
+        (u: any) =>
+          (u.userId && u.userId.toLowerCase() === normalizedId) ||
+          (u.email && u.email.toLowerCase() === normalizedId)
+      );
+    } catch (e) {}
 
     // Check custom saved password in localStorage
     const customSavedPw = localStorage.getItem('dwps_custom_admin_password');
@@ -147,9 +161,23 @@ export const SchoolAdminLoginModal: React.FC<SchoolAdminLoginModalProps> = ({
       setIsLoading(false);
       onLoginSuccess(user);
       onClose();
+    } else if (cachedUser && (isValidPassword || (cachedUser.password && cachedUser.password === normalizedPw) || (cachedUser.customPassword && cachedUser.customPassword === normalizedPw))) {
+      const user = {
+        name: cachedUser.name,
+        role: cachedUser.role || 'Staff Executive',
+        email: cachedUser.email
+      };
+      if (rememberMe) {
+        localStorage.setItem('dwps_admin_session', JSON.stringify(user));
+      } else {
+        localStorage.removeItem('dwps_admin_session');
+      }
+      setIsLoading(false);
+      onLoginSuccess(user);
+      onClose();
     } else {
       setIsLoading(false);
-      setErrorMsg('Invalid Institutional User ID, Email, or Password. Please verify your credentials or click "Forgot Password?".');
+      setErrorMsg(serverErrorMessage || 'Invalid Institutional User ID, Email, or Password. Please verify your credentials or click "Forgot Password?".');
     }
   };
 

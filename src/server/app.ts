@@ -621,6 +621,241 @@ app.delete('/api/admin/users/:id', async (req, res) => {
   return res.json({ success: true, message: 'User account removed successfully.' });
 });
 
+// Update created user details and/or password
+app.put('/api/admin/users/:id', async (req, res) => {
+  const requester = (req.headers['x-admin-email'] || req.body?.requesterEmail || '').toString().trim().toLowerCase();
+  const { id } = req.params;
+  const { name, email, userId, mobile, designation, password, role, status } = req.body || {};
+
+  const isSuper = requester === 'dwpsballabgarh@gmail.com';
+
+  // Find existing user in DB or in-memory
+  const sql = getSql();
+  let existingUser: any = null;
+  if (sql) {
+    try {
+      const rows = await sql`
+        SELECT id, name, email, user_id as "userId", mobile, designation, password, role, status, created_at as "createdAt"
+        FROM dwps_admin_users
+        WHERE id = ${id}
+        LIMIT 1
+      `;
+      if (rows && rows.length > 0) {
+        existingUser = rows[0];
+      }
+    } catch (err) {
+      console.warn('[Admin Users] DB lookup for update failed:', err);
+    }
+  }
+
+  if (!existingUser) {
+    existingUser = inMemoryAdminUsers.find(u => u.id === id);
+  }
+
+  if (!existingUser) {
+    return res.status(404).json({
+      success: false,
+      error: `User account with ID "${id}" was not found.`
+    });
+  }
+
+  const isSelf =
+    (existingUser.email && existingUser.email.toLowerCase() === requester) ||
+    (existingUser.userId && existingUser.userId.toLowerCase() === requester);
+
+  if (!isSuper && !isSelf) {
+    return res.status(403).json({
+      success: false,
+      error: 'Access Denied: Only user dwpsballabgarh@gmail.com or the account owner is authorized to modify this user account.'
+    });
+  }
+
+  const cleanName = (name !== undefined ? name : existingUser.name).toString().trim();
+  const cleanEmail = (email !== undefined ? email : existingUser.email).toString().trim().toLowerCase();
+  const cleanUserId = (userId !== undefined ? userId : (existingUser.userId || existingUser.user_id)).toString().trim().toLowerCase().replace(/\s+/g, '');
+  const cleanMobile = (mobile !== undefined ? mobile : existingUser.mobile).toString().trim();
+  const cleanDesignation = (designation !== undefined ? designation : existingUser.designation).toString().trim();
+  const cleanRole = (role !== undefined ? role : (existingUser.role || 'Administrator')).toString().trim();
+  const cleanStatus = (status !== undefined ? status : (existingUser.status || 'Active')).toString().trim();
+
+  let finalPassword = existingUser.password;
+  let passwordChanged = false;
+  if (password && typeof password === 'string' && password.trim().length > 0) {
+    const trimmedPw = password.trim();
+    if (trimmedPw.length < 6) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password must be at least 6 characters long.'
+      });
+    }
+    finalPassword = trimmedPw;
+    passwordChanged = true;
+  }
+
+  // Check duplicate user_id or email with OTHER users
+  if (cleanUserId !== (existingUser.userId || existingUser.user_id) || cleanEmail !== existingUser.email) {
+    const duplicate = inMemoryAdminUsers.find(
+      u => u.id !== id && (u.userId.toLowerCase() === cleanUserId || u.email.toLowerCase() === cleanEmail)
+    );
+    if (duplicate) {
+      return res.status(409).json({
+        success: false,
+        error: `Another user with User ID "${cleanUserId}" or Email "${cleanEmail}" already exists.`
+      });
+    }
+  }
+
+  if (sql) {
+    try {
+      await sql`
+        UPDATE dwps_admin_users
+        SET 
+          name = ${cleanName},
+          email = ${cleanEmail},
+          user_id = ${cleanUserId},
+          mobile = ${cleanMobile},
+          designation = ${cleanDesignation},
+          password = ${finalPassword},
+          role = ${cleanRole},
+          status = ${cleanStatus}
+        WHERE id = ${id}
+      `;
+    } catch (err: any) {
+      console.error('[Admin Users] DB update failed:', err);
+      if (err?.message?.includes('unique') || err?.message?.includes('duplicate')) {
+        return res.status(409).json({
+          success: false,
+          error: `User ID "${cleanUserId}" or Email "${cleanEmail}" is already taken.`
+        });
+      }
+    }
+  }
+
+  // Update in memory
+  const idx = inMemoryAdminUsers.findIndex(u => u.id === id);
+  const updatedUser: AdminUserRecord = {
+    id,
+    name: cleanName,
+    email: cleanEmail,
+    userId: cleanUserId,
+    mobile: cleanMobile,
+    designation: cleanDesignation,
+    password: finalPassword,
+    role: cleanRole,
+    status: cleanStatus,
+    createdAt: existingUser.createdAt || existingUser.created_at || new Date().toISOString()
+  };
+
+  if (idx !== -1) {
+    inMemoryAdminUsers[idx] = updatedUser;
+  } else {
+    inMemoryAdminUsers.push(updatedUser);
+  }
+
+  if (cleanEmail === 'dwpsballabgarh@gmail.com' || cleanUserId === 'dwpsballabgarh') {
+    if (passwordChanged) {
+      serverCustomAdminPassword = finalPassword;
+    }
+  }
+
+  console.log(`[Admin Users] ✅ Successfully updated user "${cleanName}" (${cleanUserId}) - Password Changed: ${passwordChanged}`);
+
+  const { password: _p, ...sanitized } = updatedUser;
+  return res.json({
+    success: true,
+    message: passwordChanged
+      ? `User account and password updated successfully! "${cleanName}" can now log in with the new password in Admin Login.`
+      : `User account details updated successfully for "${cleanName}".`,
+    user: sanitized,
+    passwordChanged
+  });
+});
+
+// Dedicated endpoint to edit password for created users
+app.patch('/api/admin/users/:id/password', async (req, res) => {
+  const requester = (req.headers['x-admin-email'] || req.body?.requesterEmail || '').toString().trim().toLowerCase();
+  const { id } = req.params;
+  const { newPassword } = req.body || {};
+
+  if (!newPassword || typeof newPassword !== 'string' || newPassword.trim().length < 6) {
+    return res.status(400).json({
+      success: false,
+      error: 'New password is required and must contain at least 6 characters.'
+    });
+  }
+
+  const trimmedPw = newPassword.trim();
+  const isSuper = requester === 'dwpsballabgarh@gmail.com';
+
+  const sql = getSql();
+  let existingUser: any = null;
+  if (sql) {
+    try {
+      const rows = await sql`
+        SELECT id, name, email, user_id as "userId", password
+        FROM dwps_admin_users
+        WHERE id = ${id}
+        LIMIT 1
+      `;
+      if (rows && rows.length > 0) {
+        existingUser = rows[0];
+      }
+    } catch (err) {
+      console.warn('[Admin Users] DB lookup for password patch failed:', err);
+    }
+  }
+
+  if (!existingUser) {
+    existingUser = inMemoryAdminUsers.find(u => u.id === id);
+  }
+
+  if (!existingUser) {
+    return res.status(404).json({
+      success: false,
+      error: `User account with ID "${id}" was not found.`
+    });
+  }
+
+  const isSelf =
+    (existingUser.email && existingUser.email.toLowerCase() === requester) ||
+    (existingUser.userId && existingUser.userId.toLowerCase() === requester);
+
+  if (!isSuper && !isSelf) {
+    return res.status(403).json({
+      success: false,
+      error: 'Access Denied: Only user dwpsballabgarh@gmail.com or account owner can update password.'
+    });
+  }
+
+  if (sql) {
+    try {
+      await sql`
+        UPDATE dwps_admin_users
+        SET password = ${trimmedPw}
+        WHERE id = ${id}
+      `;
+    } catch (err) {
+      console.error('[Admin Users] DB password update failed:', err);
+    }
+  }
+
+  const memUser = inMemoryAdminUsers.find(u => u.id === id);
+  if (memUser) {
+    memUser.password = trimmedPw;
+  }
+
+  if (existingUser.email?.toLowerCase() === 'dwpsballabgarh@gmail.com' || existingUser.userId?.toLowerCase() === 'dwpsballabgarh') {
+    serverCustomAdminPassword = trimmedPw;
+  }
+
+  console.log(`[Admin Users] 🔑 Password updated for user: ${existingUser.name} (${existingUser.userId || existingUser.id})`);
+
+  return res.json({
+    success: true,
+    message: `Password for "${existingUser.name}" updated successfully! The user can now log in using this new password in Admin Login.`
+  });
+});
+
 app.post('/api/admin/login', async (req, res) => {
   const { loginId, password } = req.body || {};
   const cleanString = (str: string) =>

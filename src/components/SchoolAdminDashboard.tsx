@@ -141,6 +141,23 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
   const [createUserSuccess, setCreateUserSuccess] = useState('');
   const [isSubmittingUser, setIsSubmittingUser] = useState(false);
 
+  // Edit User & Password State (for created users & admin accounts)
+  const [editingUser, setEditingUser] = useState<InstitutionalUser | null>(null);
+  const [isEditUserModalOpen, setIsEditUserModalOpen] = useState(false);
+  const [editUserName, setEditUserName] = useState('');
+  const [editUserEmail, setEditUserEmail] = useState('');
+  const [editUserId, setEditUserId] = useState('');
+  const [editUserMobile, setEditUserMobile] = useState('');
+  const [editUserDesignation, setEditUserDesignation] = useState('');
+  const [editUserPassword, setEditUserPassword] = useState('');
+  const [editUserRole, setEditUserRole] = useState('Administrator');
+  const [editUserStatus, setEditUserStatus] = useState<string>('Active');
+  const [showEditUserPassword, setShowEditUserPassword] = useState(false);
+  const [editUserError, setEditUserError] = useState('');
+  const [editUserSuccess, setEditUserSuccess] = useState('');
+  const [isSubmittingEditUser, setIsSubmittingEditUser] = useState(false);
+  const [copiedPassword, setCopiedPassword] = useState(false);
+
   useEffect(() => {
     loadAdminUsers();
   }, []);
@@ -149,6 +166,9 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
     const users = await api.getAdminUsers();
     if (users && users.length > 0) {
       setAdminUsers(users);
+      try {
+        localStorage.setItem('dwps_admin_users_cache', JSON.stringify(users));
+      } catch (e) {}
     } else {
       setAdminUsers([
         {
@@ -241,9 +261,114 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
     }
     const res = await api.deleteAdminUser(id, currentUser.email);
     if (res.success) {
-      setAdminUsers(prev => prev.filter(u => u.id !== id));
+      setAdminUsers(prev => {
+        const next = prev.filter(u => u.id !== id);
+        try {
+          localStorage.setItem('dwps_admin_users_cache', JSON.stringify(next));
+        } catch (e) {}
+        return next;
+      });
     } else {
       alert(res.error || 'Failed to remove user account.');
+    }
+  };
+
+  const handleOpenEditUserModal = (user: InstitutionalUser) => {
+    setEditingUser(user);
+    setEditUserName(user.name || '');
+    setEditUserEmail(user.email || '');
+    setEditUserId(user.userId || '');
+    setEditUserMobile(user.mobile || '');
+    setEditUserDesignation(user.designation || '');
+    setEditUserPassword('');
+    setEditUserRole(user.role || 'Administrator');
+    setEditUserStatus(user.status || 'Active');
+    setShowEditUserPassword(false);
+    setEditUserError('');
+    setEditUserSuccess('');
+    setCopiedPassword(false);
+    setIsEditUserModalOpen(true);
+  };
+
+  const handleGenerateRandomPassword = () => {
+    const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%';
+    let pw = 'Dwps@2026';
+    for (let i = 0; i < 4; i++) {
+      pw += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setEditUserPassword(pw);
+    setShowEditUserPassword(true);
+  };
+
+  const handleCopyPassword = () => {
+    if (!editUserPassword) return;
+    navigator.clipboard.writeText(editUserPassword);
+    setCopiedPassword(true);
+    setTimeout(() => setCopiedPassword(false), 2500);
+  };
+
+  const handleSaveEditUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    setEditUserError('');
+    setEditUserSuccess('');
+
+    if (
+      !editUserName.trim() ||
+      !editUserEmail.trim() ||
+      !editUserId.trim() ||
+      !editUserMobile.trim() ||
+      !editUserDesignation.trim()
+    ) {
+      setEditUserError('All 5 core fields (Name, Email ID, User ID, Mobile No, Designation) are mandatory.');
+      return;
+    }
+
+    if (editUserPassword.trim() && editUserPassword.trim().length < 6) {
+      setEditUserError('Password must contain at least 6 characters.');
+      return;
+    }
+
+    setIsSubmittingEditUser(true);
+    const res = await api.updateAdminUser(
+      editingUser.id,
+      {
+        name: editUserName.trim(),
+        email: editUserEmail.trim(),
+        userId: editUserId.trim().toLowerCase(),
+        mobile: editUserMobile.trim(),
+        designation: editUserDesignation.trim(),
+        password: editUserPassword.trim() || undefined,
+        role: editUserRole,
+        status: editUserStatus
+      },
+      currentUser.email
+    );
+
+    setIsSubmittingEditUser(false);
+    if (res.success && res.user) {
+      const updated = res.user;
+      setAdminUsers(prev => {
+        const next = prev.map(u => (u.id === editingUser.id ? updated : u));
+        try {
+          localStorage.setItem('dwps_admin_users_cache', JSON.stringify(next));
+        } catch (e) {}
+        return next;
+      });
+
+      setEditUserSuccess(
+        editUserPassword.trim()
+          ? `Password and account details for "${updated.name}" updated successfully! The user can now log in with the new password in Admin Login.`
+          : `Account details for "${updated.name}" updated successfully!`
+      );
+
+      setTimeout(() => {
+        setIsEditUserModalOpen(false);
+        setEditUserSuccess('');
+        setEditingUser(null);
+      }, 1500);
+    } else {
+      setEditUserError(res.error || 'Failed to update user account. Please check details and try again.');
     }
   };
 
@@ -1525,21 +1650,35 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px]">
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-[11px] gap-2 flex-wrap">
                       <div className="flex items-center gap-1.5 text-slate-500">
                         <span className="material-symbols-outlined text-sm text-emerald-600">verified</span>
                         <span>Institutional Portal Authorized</span>
                       </div>
-                      {isSuperAdmin && !isOfficialGmail && !isDirector && (
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteUser(user.id, user.name)}
-                          className="text-red-600 hover:text-red-800 font-bold hover:underline flex items-center gap-1 cursor-pointer"
-                        >
-                          <span className="material-symbols-outlined text-xs">delete</span>
-                          <span>Remove User</span>
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {(isSuperAdmin || isCurrentSession) && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditUserModal(user)}
+                            className="px-3 py-1.5 bg-[#021936] hover:bg-[#904d00] text-white font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer text-xs shadow-xs"
+                            title="Edit User Details & Password for Admin Login"
+                          >
+                            <span className="material-symbols-outlined text-sm">edit_square</span>
+                            <span>Edit Password</span>
+                          </button>
+                        )}
+                        {isSuperAdmin && !isOfficialGmail && !isDirector && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteUser(user.id, user.name)}
+                            className="px-2.5 py-1.5 text-red-600 hover:bg-red-50 hover:text-red-800 font-bold rounded-lg transition-colors flex items-center gap-1 cursor-pointer text-xs"
+                            title="Remove User Account"
+                          >
+                            <span className="material-symbols-outlined text-sm">delete</span>
+                            <span>Remove</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -2372,6 +2511,284 @@ export const SchoolAdminDashboard: React.FC<SchoolAdminDashboardProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsCreateUserModalOpen(false)}
+                  className="py-3 px-5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg cursor-pointer transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL 8: EDIT INSTITUTIONAL USER & PASSWORD MODAL --- */}
+      {isEditUserModalOpen && editingUser && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn"
+          onClick={() => setIsEditUserModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-[#dce3ec]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-[#021936] text-white p-6 relative">
+              <button
+                type="button"
+                onClick={() => setIsEditUserModalOpen(false)}
+                className="absolute top-4 right-4 text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-[#904d00] text-white flex items-center justify-center shrink-0 shadow-md">
+                  <span className="material-symbols-outlined text-2xl">manage_accounts</span>
+                </div>
+                <div>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-[#904d00] text-white inline-block">
+                    Admin Access &amp; Credentials
+                  </span>
+                  <h3 className="text-xl font-bold font-serif text-white mt-0.5">
+                    Edit User &amp; Password
+                  </h3>
+                  <p className="text-xs text-[#8396b9]">
+                    Update login password and authorized details for {editingUser.name}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleSaveEditUser} className="p-6 space-y-4">
+              {editUserError && (
+                <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2 animate-fadeIn">
+                  <span className="material-symbols-outlined text-base shrink-0">error</span>
+                  <span>{editUserError}</span>
+                </div>
+              )}
+
+              {editUserSuccess && (
+                <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 animate-fadeIn">
+                  <span className="material-symbols-outlined text-base shrink-0 text-emerald-600">check_circle</span>
+                  <span>{editUserSuccess}</span>
+                </div>
+              )}
+
+              {/* SECTION: EDIT PASSWORD FOR ADMIN LOGIN */}
+              <div className="p-4 rounded-xl bg-amber-50/80 border-2 border-amber-300 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-1.5 text-xs font-bold text-[#021936] uppercase tracking-wider">
+                    <span className="material-symbols-outlined text-base text-amber-700">key</span>
+                    <span>Admin Login Password</span>
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handleGenerateRandomPassword}
+                      className="text-[10px] font-bold px-2 py-1 bg-amber-200/80 hover:bg-amber-300 text-amber-950 rounded transition-colors cursor-pointer flex items-center gap-1"
+                      title="Generate strong secure password"
+                    >
+                      <span className="material-symbols-outlined text-xs">auto_fix</span>
+                      <span>Generate Password</span>
+                    </button>
+                    {editUserPassword && (
+                      <button
+                        type="button"
+                        onClick={handleCopyPassword}
+                        className="text-[10px] font-bold px-2 py-1 bg-white hover:bg-slate-100 text-slate-800 border border-amber-200 rounded transition-colors cursor-pointer flex items-center gap-1"
+                        title="Copy password to clipboard"
+                      >
+                        <span className="material-symbols-outlined text-xs">content_copy</span>
+                        <span>{copiedPassword ? 'Copied!' : 'Copy'}</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
+                    lock
+                  </span>
+                  <input
+                    type={showEditUserPassword ? 'text' : 'password'}
+                    value={editUserPassword}
+                    onChange={(e) => setEditUserPassword(e.target.value)}
+                    placeholder="Enter new password (leave blank to keep existing password)"
+                    className="w-full h-11 pl-10 pr-10 rounded-lg bg-white border border-amber-300 text-xs font-semibold text-[#021936] focus:border-[#904d00] focus:ring-1 focus:ring-[#904d00] outline-none transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEditUserPassword(!showEditUserPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    title={showEditUserPassword ? 'Hide password' : 'Show password'}
+                  >
+                    <span className="material-symbols-outlined text-base">
+                      {showEditUserPassword ? 'visibility_off' : 'visibility'}
+                    </span>
+                  </button>
+                </div>
+                <p className="text-[11px] text-amber-900 leading-tight">
+                  💡 <strong>Password for Admin Login:</strong> Enter a new password (min 6 characters) to immediately update credentials for this user to log in at the School Admin Login screen. Leave blank to keep existing password.
+                </p>
+              </div>
+
+              {/* 1. Full Name */}
+              <div>
+                <label className="block text-xs font-bold text-[#021936] uppercase tracking-wider mb-1">
+                  Full Name <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
+                    person
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    value={editUserName}
+                    onChange={(e) => setEditUserName(e.target.value)}
+                    placeholder="e.g. Mrs. Sunita Sharma"
+                    className="w-full h-11 pl-10 pr-3 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-semibold text-[#021936] focus:border-[#904d00] focus:bg-white outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* 2. User Email ID */}
+              <div>
+                <label className="block text-xs font-bold text-[#021936] uppercase tracking-wider mb-1">
+                  User Email ID <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
+                    mail
+                  </span>
+                  <input
+                    type="email"
+                    required
+                    value={editUserEmail}
+                    onChange={(e) => setEditUserEmail(e.target.value)}
+                    placeholder="e.g. sunita@dwpsballabgarh.org"
+                    className="w-full h-11 pl-10 pr-3 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-semibold text-[#021936] focus:border-[#904d00] focus:bg-white outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* 3. User ID & Mobile No in 2 columns */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-[#021936] uppercase tracking-wider mb-1">
+                    User ID (Login ID) <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
+                      badge
+                    </span>
+                    <input
+                      type="text"
+                      required
+                      value={editUserId}
+                      onChange={(e) => setEditUserId(e.target.value.replace(/\s+/g, '').toLowerCase())}
+                      placeholder="e.g. sunita@dwps"
+                      className="w-full h-11 pl-10 pr-3 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-mono font-bold text-[#021936] focus:border-[#904d00] focus:bg-white outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#021936] uppercase tracking-wider mb-1">
+                    Mobile No <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
+                      call
+                    </span>
+                    <input
+                      type="tel"
+                      required
+                      value={editUserMobile}
+                      onChange={(e) => setEditUserMobile(e.target.value)}
+                      placeholder="+91 98111 22334"
+                      className="w-full h-11 pl-10 pr-3 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-semibold text-[#021936] focus:border-[#904d00] focus:bg-white outline-none transition-all"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Designation */}
+              <div>
+                <label className="block text-xs font-bold text-[#021936] uppercase tracking-wider mb-1">
+                  Designation <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
+                    work
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    value={editUserDesignation}
+                    onChange={(e) => setEditUserDesignation(e.target.value)}
+                    placeholder="e.g. Academic Coordinator / Vice Principal"
+                    className="w-full h-11 pl-10 pr-3 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-semibold text-[#021936] focus:border-[#904d00] focus:bg-white outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* 5. Access Role & Status in 2 columns */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                <div>
+                  <label className="block text-xs font-bold text-[#021936] uppercase tracking-wider mb-1">
+                    Access Role
+                  </label>
+                  <select
+                    value={editUserRole}
+                    onChange={(e) => setEditUserRole(e.target.value)}
+                    className="w-full h-11 px-3 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-semibold text-[#021936] focus:border-[#904d00] focus:bg-white outline-none transition-all cursor-pointer"
+                  >
+                    <option value="Administrator">Administrator (Full Access)</option>
+                    <option value="Staff Executive">Staff Executive</option>
+                    <option value="Admission Desk">Admission Desk</option>
+                    <option value="Accounts Manager">Accounts Manager</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#021936] uppercase tracking-wider mb-1">
+                    Account Status
+                  </label>
+                  <select
+                    value={editUserStatus}
+                    onChange={(e) => setEditUserStatus(e.target.value)}
+                    className="w-full h-11 px-3 rounded-lg bg-[#F2F8FD] border border-[#dce3ec] text-xs font-semibold text-[#021936] focus:border-[#904d00] focus:bg-white outline-none transition-all cursor-pointer"
+                  >
+                    <option value="Active">Active (Permitted to Log In)</option>
+                    <option value="Inactive">Inactive</option>
+                    <option value="Suspended">Suspended</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="pt-3 flex gap-3 border-t border-slate-100">
+                <button
+                  type="submit"
+                  disabled={isSubmittingEditUser}
+                  className="flex-1 py-3 bg-[#021936] hover:bg-[#904d00] disabled:opacity-75 text-white font-bold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {isSubmittingEditUser ? (
+                    <>
+                      <span className="material-symbols-outlined text-base animate-spin">refresh</span>
+                      <span>Saving Changes...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-base">save</span>
+                      <span>Save Changes &amp; Update Password</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditUserModalOpen(false)}
                   className="py-3 px-5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg cursor-pointer transition-colors"
                 >
                   Cancel
