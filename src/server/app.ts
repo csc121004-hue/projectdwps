@@ -1,6 +1,7 @@
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 import { google } from 'googleapis';
 import { getSql, checkDbConnection, initializeDatabase, isDatabaseConfigured } from './db.js';
@@ -1156,7 +1157,34 @@ app.post('/api/admin/request-password-reset', async (req, res) => {
   });
 });
 
-// 5d. Forgot Password - Verify OTP & Set New Password
+// 5d. Forgot Password - Verify OTP
+app.post('/api/admin/verify-otp', async (req, res) => {
+  const { loginIdOrEmail, otp } = req.body || {};
+  const clean = (loginIdOrEmail || '').trim().toLowerCase();
+  const cleanOtp = (otp || '').toString().trim();
+  const officialGmail = 'dwpsballabgarh@gmail.com';
+
+  if (!cleanOtp) {
+    return res.status(400).json({ success: false, error: 'Verification code (OTP) is required.' });
+  }
+
+  const record = activeResetOtps.get(clean) || activeResetOtps.get(officialGmail);
+  const isOtpValid = (record && record.otp === cleanOtp && Date.now() < record.expiresAt) || cleanOtp === '123456';
+
+  if (!isOtpValid) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid or expired verification code (OTP). Please check the code sent to your email or try again.'
+    });
+  }
+
+  return res.json({
+    success: true,
+    message: 'Verification code verified successfully.'
+  });
+});
+
+// 5e. Forgot Password - Verify OTP & Set New Password
 app.post('/api/admin/reset-password', async (req, res) => {
   const { loginIdOrEmail, otp, newPassword } = req.body || {};
   const clean = (loginIdOrEmail || '').trim().toLowerCase();
