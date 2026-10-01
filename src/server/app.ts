@@ -1004,6 +1004,28 @@ function buildRawEmail({
     .replace(/=+$/, '');
 }
 
+// Generate clean plain-text alternative for anti-spam deliverability
+function buildOtpEmailText(otp: string): string {
+  return [
+    'DISNEY WORLD PUBLIC SCHOOL',
+    'Institutional Portal Security - Administrator Password Reset',
+    '============================================================',
+    '',
+    'Hello Administrator,',
+    '',
+    'A verification request was initiated to reset your institutional administrator password.',
+    '',
+    '------------------------------------------------------------',
+    `ONE-TIME SECURITY VERIFICATION CODE: ${otp}`,
+    '------------------------------------------------------------',
+    '',
+    'This verification code is strictly confidential and will expire in 10 minutes.',
+    'If you did not initiate this request, please inform the school administration immediately.',
+    '',
+    'Disney World Public School • Subhash Colony, Ballabgarh, Faridabad - 121004'
+  ].join('\n');
+}
+
 // Generate secure HTML email template for OTP
 function buildOtpEmailHtml(otp: string): string {
   return `
@@ -1036,7 +1058,7 @@ async function sendGmailWithOAuth2(
   refreshToken: string,
   ccEmail?: string
 ): Promise<{ sent: boolean; method: string; info?: string }> {
-  console.log(`[OAuth2 Dispatcher] 🔑 Attempting Google OAuth2 REST dispatch via googleapis...`);
+  console.log(`[${new Date().toISOString()}] [OAuth2 Dispatcher] 🔑 Attempting Google OAuth2 REST dispatch via googleapis...`);
 
   const oauth2Client = new google.auth.OAuth2(
     clientId,
@@ -1065,7 +1087,7 @@ async function sendGmailWithOAuth2(
     requestBody: { raw },
   });
 
-  console.log(`[OAuth2 Dispatcher] 🚀 Email delivered successfully via Google OAuth2 REST API! Message ID: ${sendRes.data.id}`);
+  console.log(`[${new Date().toISOString()}] [OAuth2 Dispatcher] 🚀 Email delivered successfully via Google OAuth2 REST API! Message ID: ${sendRes.data.id}`);
   return {
     sent: true,
     method: 'googleapis-oauth2',
@@ -1073,7 +1095,7 @@ async function sendGmailWithOAuth2(
   };
 }
 
-// Production-ready email dispatcher supporting generic SMTP and Gmail configurations
+// Production-ready immediate email dispatcher engineered for zero delay and serverless resilience
 async function sendOtpEmail({
   targetEmail,
   otp,
@@ -1090,72 +1112,167 @@ async function sendOtpEmail({
   errorCode?: string;
   diagnostics?: Record<string, any>;
 }> {
+  const dispatchStartTime = Date.now();
   const configuredOfficial = (process.env.OFFICIAL_EMAIL || process.env.ADMIN_EMAIL || officialEmail || 'dwpsballabgarh@gmail.com').trim();
   const smtpHost = (process.env.SMTP_HOST || '').trim();
   const smtpPort = Number(process.env.SMTP_PORT) || 587;
   const smtpUser = (process.env.SMTP_USER || process.env.GMAIL_USER || configuredOfficial).trim();
   const rawSmtpPass = (process.env.SMTP_PASSWORD || process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS || process.env.EMAIL_PASS || '').trim();
   const smtpPass = rawSmtpPass.replace(/[\s-]+/g, '');
-  const isSmtpSecure = process.env.SMTP_SECURE === 'true' || smtpPort === 465;
 
-  // Send a copy to the configured official/admin email using CC
+  const maskedTarget = targetEmail.replace(/(^.{2})(.*)(@.*$)/, (_m, p1, p2, p3) => p1 + '•'.repeat(Math.max(p2.length, 3)) + p3);
+  const maskedAdmin = configuredOfficial.replace(/(^.{2})(.*)(@.*$)/, (_m, p1, p2, p3) => p1 + '•'.repeat(Math.max(p2.length, 3)) + p3);
+
+  // Send a copy to the configured official/admin email
   const shouldCcAdmin = configuredOfficial && targetEmail.toLowerCase() !== configuredOfficial.toLowerCase();
-  const ccRecipient = shouldCcAdmin ? configuredOfficial : undefined;
+  const adminBccRecipient = shouldCcAdmin ? configuredOfficial : undefined;
 
-  console.log(`[Email Dispatcher] 📧 Initiating OTP dispatch (CC to Admin: ${configuredOfficial})...`);
+  console.log(`[${new Date().toISOString()}] [Email Dispatcher] [T+0ms] 📧 Initiating IMMEDIATE OTP email dispatch:`);
+  console.log(`[${new Date().toISOString()}] [Email Dispatcher] [T+0ms]    ↳ Target: ${maskedTarget} | Admin Copy (BCC): ${adminBccRecipient ? maskedAdmin : 'Self (Not duplicate)'}`);
 
-  // 1. Check custom SMTP configuration if SMTP_HOST is set
-  if (smtpHost && smtpPass) {
-    try {
-      console.log(`[Email Dispatcher] 🔌 Connecting to custom SMTP server ${smtpHost}:${smtpPort}...`);
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: isSmtpSecure,
-        auth: {
-          user: smtpUser,
-          pass: smtpPass,
-        },
-        connectionTimeout: 10000,
-        greetingTimeout: 10000,
-        socketTimeout: 15000,
+  // Determine whether Gmail SMTP or custom SMTP
+  const isGmail = smtpHost.toLowerCase().includes('gmail.com') || (!smtpHost && smtpUser.toLowerCase().includes('@gmail.com'));
+
+  // Build candidate configurations ordered by speed and deliverability:
+  // For Gmail: Port 465 Direct SSL is the gold standard (avoids STARTTLS handshakes, greylisting delays, and ISP throttling)
+  // Followed by Port 587 STARTTLS as backup.
+  const transportConfigs: Array<{
+    name: string;
+    opts: any;
+  }> = [];
+
+  if (smtpPass) {
+    if (isGmail) {
+      transportConfigs.push({
+        name: 'Gmail Direct SMTPS (Port 465 SSL, IPv4, Instant)',
+        opts: {
+          host: 'smtp.gmail.com',
+          port: 465,
+          secure: true,
+          auth: { user: smtpUser, pass: smtpPass },
+          family: 4, // Prevents IPv6 lookup timeouts on Linux and serverless environments
+          pool: false, // Critical for serverless: do not leave idle pool connections open
+          connectionTimeout: 8000,
+          greetingTimeout: 8000,
+          socketTimeout: 10000,
+        }
       });
-
-      const mailOptions = {
-        from: `"Disney World Public School" <${smtpUser}>`,
-        to: targetEmail,
-        ...(ccRecipient ? { cc: ccRecipient } : {}),
-        subject: `[DWPS Security] Administrator Password Reset Verification Code`,
-        html: buildOtpEmailHtml(otp),
-      };
-
-      const result = await transporter.sendMail(mailOptions);
-      console.log(`[Email Dispatcher] ✅ Email delivered via SMTP server (${smtpHost}). Message ID: ${result.messageId}`);
-      return {
-        sent: true,
-        method: `smtp-${smtpHost}`,
-        info: result.messageId,
-        diagnostics: {
+      transportConfigs.push({
+        name: 'Gmail STARTTLS (Port 587, IPv4 Fallback)',
+        opts: {
+          host: 'smtp.gmail.com',
+          port: 587,
+          secure: false,
+          requireTLS: true,
+          auth: { user: smtpUser, pass: smtpPass },
+          family: 4,
+          pool: false,
+          connectionTimeout: 8000,
+          greetingTimeout: 8000,
+          socketTimeout: 10000,
+        }
+      });
+    } else if (smtpHost) {
+      const isSecure = process.env.SMTP_SECURE === 'true' || smtpPort === 465;
+      transportConfigs.push({
+        name: `Custom SMTP Server (${smtpHost}:${smtpPort}, secure=${isSecure})`,
+        opts: {
           host: smtpHost,
           port: smtpPort,
-          cc: ccRecipient,
-          verified: true
+          secure: isSecure,
+          auth: { user: smtpUser, pass: smtpPass },
+          family: 4,
+          pool: false,
+          connectionTimeout: 8000,
+          greetingTimeout: 8000,
+          socketTimeout: 10000,
         }
-      };
-    } catch (smtpErr: any) {
-      console.error(`[Email Dispatcher] ❌ Custom SMTP failed: ${smtpErr?.message}`);
-      // Fall through to other configured methods
+      });
     }
   }
 
-  // 2. Google OAuth2 credentials (googleapis REST API)
+  // Common high-priority RFC-5322 mail options
+  // Text counterpart + High Priority headers prevent anti-spam greylisting queues (which cause 15-30 min delays)
+  const messageDomain = smtpUser.split('@')[1] || 'dwpsballabgarh.com';
+  const customMessageId = `<dwps-sec-otp-${Date.now()}-${crypto.randomBytes(4).toString('hex')}@${messageDomain}>`;
+
+  const mailOptions = {
+    from: `"Disney World Public School" <${smtpUser}>`,
+    to: targetEmail,
+    ...(adminBccRecipient ? { bcc: adminBccRecipient } : {}),
+    subject: `[DWPS Security] Administrator Password Reset Verification Code`,
+    text: buildOtpEmailText(otp),
+    html: buildOtpEmailHtml(otp),
+    messageId: customMessageId,
+    date: new Date(),
+    priority: 'high' as const,
+    headers: {
+      'X-Priority': '1 (Highest)',
+      'X-MSMail-Priority': 'High',
+      'Importance': 'High',
+      'Priority': 'urgent',
+      'Auto-Submitted': 'auto-generated',
+      'X-Auto-Response-Suppress': 'OOF, AutoReply',
+      'X-Entity-Ref-ID': `dwps-otp-reset-${Date.now()}`
+    }
+  };
+
+  let lastSmtpError: any = null;
+
+  // Attempt SMTP transmission with immediate socket teardown (critical for serverless)
+  for (const cfg of transportConfigs) {
+    const attemptStart = Date.now();
+    let transporter: any = null;
+    try {
+      console.log(`[${new Date().toISOString()}] [Email Dispatcher] [T+${Date.now() - dispatchStartTime}ms] 🔌 Initializing transport: ${cfg.name}...`);
+      transporter = nodemailer.createTransport(cfg.opts);
+
+      const sendStart = Date.now();
+      const result = await transporter.sendMail(mailOptions);
+      const sendDuration = Date.now() - sendStart;
+      const totalDuration = Date.now() - dispatchStartTime;
+
+      console.log(`[${new Date().toISOString()}] [Email Dispatcher] [T+${totalDuration}ms] ✅ Email transmitted successfully via ${cfg.name}!`);
+      console.log(`[${new Date().toISOString()}] [Email Dispatcher]    ↳ Message ID: ${result.messageId} | Send Duration: ${sendDuration}ms | Total Dispatch Time: ${totalDuration}ms`);
+
+      return {
+        sent: true,
+        method: cfg.name,
+        info: result.messageId,
+        diagnostics: {
+          transport: cfg.name,
+          durationMs: totalDuration,
+          hasAdminCopy: Boolean(adminBccRecipient),
+          timestamp: new Date().toISOString()
+        }
+      };
+    } catch (err: any) {
+      lastSmtpError = err;
+      console.error(`[${new Date().toISOString()}] [Email Dispatcher] [T+${Date.now() - dispatchStartTime}ms] ❌ Delivery attempt failed on ${cfg.name}: ${err?.message}`);
+    } finally {
+      // CRITICAL FOR SERVERLESS (Vercel, AWS Lambda):
+      // Cleanly closing the transporter issues the SMTP QUIT command immediately.
+      // Without this, the serverless container freezes with the socket half-open,
+      // causing Gmail's SMTP server to hold the mail buffer for 15-30 minutes until its inactivity timeout trips!
+      if (transporter) {
+        try {
+          transporter.close();
+          console.log(`[${new Date().toISOString()}] [Email Dispatcher] [T+${Date.now() - dispatchStartTime}ms] 🔒 Transporter socket cleanly closed (QUIT sent to SMTP server).`);
+        } catch (closeErr) {
+          // Ignore close error
+        }
+      }
+    }
+  }
+
+  // Optional: Google OAuth2 REST API fallback if configured
   const oauthClientId = (process.env.GMAIL_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || process.env.OAUTH_CLIENT_ID || '').trim();
   const oauthClientSecret = (process.env.GMAIL_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET || process.env.OAUTH_CLIENT_SECRET || '').trim();
   const oauthRefreshToken = (process.env.GMAIL_REFRESH_TOKEN || process.env.GOOGLE_REFRESH_TOKEN || process.env.OAUTH_REFRESH_TOKEN || '').trim();
 
   if (oauthClientId && oauthClientSecret && oauthRefreshToken) {
     try {
-      console.log('[Email Dispatcher] 🚀 Using Google OAuth2 via googleapis REST API...');
+      console.log(`[${new Date().toISOString()}] [Email Dispatcher] [T+${Date.now() - dispatchStartTime}ms] 🚀 Attempting Google OAuth2 REST API fallback...`);
       const oauthResult = await sendGmailWithOAuth2(
         targetEmail,
         otp,
@@ -1163,7 +1280,7 @@ async function sendOtpEmail({
         oauthClientId,
         oauthClientSecret,
         oauthRefreshToken,
-        ccRecipient
+        adminBccRecipient
       );
       return {
         sent: true,
@@ -1172,88 +1289,31 @@ async function sendOtpEmail({
         diagnostics: {
           authType: 'Google OAuth2 (googleapis REST API)',
           user: smtpUser,
-          cc: ccRecipient,
-          verified: true,
+          hasAdminCopy: Boolean(adminBccRecipient),
+          timestamp: new Date().toISOString()
         },
       };
     } catch (oauthErr: any) {
-      console.error('[Email Dispatcher] ❌ Google OAuth2 dispatch failed:', oauthErr?.message || oauthErr);
-      // Fall through to Gmail SMTP fallback
+      console.error(`[${new Date().toISOString()}] [Email Dispatcher] ❌ Google OAuth2 fallback failed:`, oauthErr?.message || oauthErr);
     }
   }
 
-  // 3. Gmail App Password fallback
-  if (smtpPass) {
-    console.log('[Email Dispatcher] 🔄 Attempting Gmail SMTP fallback...');
-    const gmailConfigs = [
-      {
-        name: 'Gmail SSL Direct (Port 465)',
-        transportOpts: {
-          host: 'smtp.gmail.com',
-          port: 465,
-          secure: true,
-          auth: { user: smtpUser, pass: smtpPass },
-          connectionTimeout: 10000,
-          greetingTimeout: 10000,
-          socketTimeout: 15000,
-        }
-      },
-      {
-        name: 'Gmail STARTTLS (Port 587)',
-        transportOpts: {
-          host: 'smtp.gmail.com',
-          port: 587,
-          secure: false,
-          requireTLS: true,
-          auth: { user: smtpUser, pass: smtpPass },
-          connectionTimeout: 10000,
-          greetingTimeout: 10000,
-          socketTimeout: 15000,
-        }
-      }
-    ];
-
-    let lastError: any = null;
-    for (const cfg of gmailConfigs) {
-      try {
-        const transporter = nodemailer.createTransport(cfg.transportOpts);
-        const mailOptions = {
-          from: `"Disney World Public School" <${smtpUser}>`,
-          to: targetEmail,
-          ...(ccRecipient ? { cc: ccRecipient } : {}),
-          subject: `[DWPS Security] Administrator Password Reset Verification Code`,
-          html: buildOtpEmailHtml(otp),
-        };
-
-        const result = await transporter.sendMail(mailOptions);
-        console.log(`[Email Dispatcher] ✅ Email delivered via ${cfg.name}. Message ID: ${result.messageId}`);
-        return {
-          sent: true,
-          method: cfg.name,
-          info: result.messageId,
-          diagnostics: {
-            usedConfig: cfg.name,
-            cc: ccRecipient,
-            verified: true
-          }
-        };
-      } catch (err: any) {
-        lastError = err;
-        console.error(`[Email Dispatcher] ❌ Connection error on ${cfg.name}:`, err?.message);
-      }
-    }
-
+  if (lastSmtpError) {
     return {
       sent: false,
-      method: 'smtp-fallback-failed',
-      error: lastError?.message || 'Failed to connect to email SMTP server.',
-      errorCode: lastError?.code || 'SMTP_CONNECTION_ERROR'
+      method: 'smtp-failed',
+      error: lastSmtpError?.message || 'Failed to deliver OTP email via configured SMTP.',
+      errorCode: lastSmtpError?.code || 'SMTP_DELIVERY_ERROR',
+      diagnostics: {
+        error: lastSmtpError?.message,
+        code: lastSmtpError?.code,
+        durationMs: Date.now() - dispatchStartTime
+      }
     };
   }
 
-  // 4. Missing credentials
-  const errorMsg = 'SMTP / Gmail credentials not configured in server environment variables (OFFICIAL_EMAIL, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, or GMAIL_APP_PASSWORD).';
-  console.warn(`[Email Dispatcher] ⚠️ ${errorMsg}`);
+  const errorMsg = 'SMTP credentials not configured in environment variables (SMTP_USER, SMTP_PASSWORD, GMAIL_APP_PASSWORD, or OFFICIAL_EMAIL).';
+  console.warn(`[${new Date().toISOString()}] [Email Dispatcher] ⚠️ ${errorMsg}`);
   return {
     sent: false,
     method: 'unconfigured',
@@ -1396,8 +1456,11 @@ app.all(['/api/admin/verify-smtp', '/api/admin/verify-email-auth'], async (_req,
 
 // 5c. Forgot Password - Request Recovery OTP
 app.post('/api/admin/request-password-reset', async (req, res) => {
+  const flowT0 = Date.now();
   const { loginIdOrEmail } = req.body || {};
   const clean = (loginIdOrEmail || '').trim().toLowerCase();
+
+  console.log(`[${new Date().toISOString()}] [OTP Flow] [T+0ms] 🚀 Password reset requested for identifier: "${clean || 'EMPTY'}"`);
 
   if (!clean) {
     return res.status(400).json({
@@ -1411,7 +1474,7 @@ app.post('/api/admin/request-password-reset', async (req, res) => {
 
   // If email/ID is unknown, return a generic response to prevent account enumeration
   if (!user) {
-    console.log(`[Admin Recovery] Password reset requested for unregistered identifier. Generic response returned.`);
+    console.log(`[${new Date().toISOString()}] [OTP Flow] [T+${Date.now() - flowT0}ms] 🔒 Unregistered identifier entered. Generic response returned to protect account privacy.`);
     return res.json({
       success: true,
       message: 'If this email is registered, an OTP has been sent. Please check your inbox and spam folder.'
@@ -1428,6 +1491,9 @@ app.post('/api/admin/request-password-reset', async (req, res) => {
 
   const userEmail = (user.email || '').trim().toLowerCase();
   const userId = (user.userId || '').trim().toLowerCase();
+  const maskedEmail = userEmail.replace(/(^.{2})(.*)(@.*$)/, (_m, p1, p2, p3) => p1 + '•'.repeat(Math.max(p2.length, 3)) + p3);
+
+  console.log(`[${new Date().toISOString()}] [OTP Flow] [T+${Date.now() - flowT0}ms] 👤 Verified account found: ${user.name} (${user.role}) - Email: ${maskedEmail}`);
 
   // 2. Rate limiting and cooldown check
   const rateLimitKey = userEmail;
@@ -1443,6 +1509,7 @@ app.post('/api/admin/request-password-reset', async (req, res) => {
   // Cooldown: 60 seconds
   const cooldownRemaining = Math.ceil((limitRecord.lastRequestTime + 60 * 1000 - now) / 1000);
   if (cooldownRemaining > 0 && limitRecord.lastRequestTime > 0) {
+    console.log(`[${new Date().toISOString()}] [OTP Flow] [T+${Date.now() - flowT0}ms] ⏳ Cooldown active: ${cooldownRemaining}s remaining for ${maskedEmail}`);
     return res.status(429).json({
       success: false,
       error: `A verification code was requested recently. Please wait ${cooldownRemaining} second${cooldownRemaining === 1 ? '' : 's'} before requesting a new code.`
@@ -1452,16 +1519,31 @@ app.post('/api/admin/request-password-reset', async (req, res) => {
   // Max 5 OTP requests per 15-minute window
   if (limitRecord.requestCount >= 5) {
     const minutesRemaining = Math.ceil((limitRecord.windowStart + 15 * 60 * 1000 - now) / 1000 / 60);
+    console.log(`[${new Date().toISOString()}] [OTP Flow] [T+${Date.now() - flowT0}ms] ⛔ Rate limit exceeded: 5 requests reached for ${maskedEmail}`);
     return res.status(429).json({
       success: false,
       error: `Too many verification code requests. Please wait ${minutesRemaining} minute${minutesRemaining === 1 ? '' : 's'} before trying again.`
     });
   }
 
-  // 3. Invalidate old OTPs when a new one is requested
+  // 3. Invalidate old OTPs in both memory and database immediately
   for (const [key, oldRecord] of activeSecureOtps.entries()) {
     if (oldRecord.email === userEmail || (userId && oldRecord.userId === userId)) {
       activeSecureOtps.delete(key);
+    }
+  }
+
+  const sql = getSql();
+  if (sql) {
+    try {
+      await sql`
+        UPDATE dwps_otps
+        SET used = TRUE, used_at = CURRENT_TIMESTAMP
+        WHERE (LOWER(email) = ${userEmail} OR (user_id IS NOT NULL AND LOWER(user_id) = ${userId}))
+          AND used = FALSE
+      `;
+    } catch (sqlErr) {
+      console.warn(`[${new Date().toISOString()}] [OTP Flow] DB old OTP invalidation warning:`, sqlErr);
     }
   }
 
@@ -1470,6 +1552,9 @@ app.post('/api/admin/request-password-reset', async (req, res) => {
   const salt = crypto.randomBytes(16).toString('hex');
   const hashedOtp = hashOtpValue(otp, salt);
   const expiresAt = now + 10 * 60 * 1000; // 10 minutes expiry
+  const otpId = `otp-${now}-${crypto.randomBytes(4).toString('hex')}`;
+
+  console.log(`[${new Date().toISOString()}] [OTP Flow] [T+${Date.now() - flowT0}ms] 🎲 Secure 6-digit OTP generated & hashed on backend (Expires in 10 minutes)`);
 
   const secureRecord: SecureOtpRecord = {
     email: userEmail,
@@ -1493,27 +1578,47 @@ app.post('/api/admin/request-password-reset', async (req, res) => {
     activeSecureOtps.set(clean, secureRecord);
   }
 
+  // Persist to Neon DB dwps_otps table immediately
+  if (sql) {
+    try {
+      await sql`
+        INSERT INTO dwps_otps (
+          id, email, user_id, hashed_otp, salt, created_at, expires_at, attempts, max_attempts, verified, used
+        ) VALUES (
+          ${otpId}, ${userEmail}, ${userId || null}, ${hashedOtp}, ${salt},
+          TO_TIMESTAMP(${now / 1000}), TO_TIMESTAMP(${expiresAt / 1000}),
+          0, 5, FALSE, FALSE
+        )
+      `;
+      console.log(`[${new Date().toISOString()}] [OTP Flow] [T+${Date.now() - flowT0}ms] 💾 OTP securely saved to database table (dwps_otps, ID: ${otpId})`);
+    } catch (dbErr) {
+      console.warn(`[${new Date().toISOString()}] [OTP Flow] DB insert warning:`, dbErr);
+    }
+  }
+
   // Update cooldown and rate limits
   limitRecord.lastRequestTime = now;
   limitRecord.requestCount += 1;
   otpRequestLimits.set(rateLimitKey, limitRecord);
 
-  // 5. Send OTP to user's registered email with copy (CC) to official/admin email
+  // 5. Send OTP to user's registered email immediately with BCC copy to official/admin email
   const officialAdminEmail = (process.env.OFFICIAL_EMAIL || process.env.ADMIN_EMAIL || process.env.GMAIL_USER || 'dwpsballabgarh@gmail.com').trim();
+  
+  console.log(`[${new Date().toISOString()}] [OTP Flow] [T+${Date.now() - flowT0}ms] 📨 Triggering immediate email dispatch...`);
   const emailResult = await sendOtpEmail({
     targetEmail: userEmail,
     otp,
     officialEmail: officialAdminEmail
   });
 
-  const maskedEmail = userEmail.replace(/(^.{2})(.*)(@.*$)/, (_m, p1, p2, p3) => p1 + '•'.repeat(Math.max(p2.length, 3)) + p3);
-  console.log(`[Admin Recovery] Verification code dispatched for user: ${user.name} (${maskedEmail}) - Dispatch status: ${emailResult.sent ? 'Delivered' : 'Pending'}`);
+  const totalFlowMs = Date.now() - flowT0;
+  console.log(`[${new Date().toISOString()}] [OTP Flow] [T+${totalFlowMs}ms] 🏁 OTP Flow Complete: User: ${user.name} (${maskedEmail}) - Status: ${emailResult.sent ? '✅ Delivered Immediately' : '❌ Delivery Failed'}`);
 
   // Do NOT expose OTP in response or logs!
   return res.json({
     success: true,
     message: emailResult.sent
-      ? `A 6-digit verification code has been dispatched to your registered email (${maskedEmail}).`
+      ? `A 6-digit verification code has been dispatched immediately to your registered email (${maskedEmail}).`
       : 'If this email is registered, an OTP has been sent. Please check your inbox and spam folder.',
     sentToEmail: maskedEmail,
     realEmailSent: emailResult.sent,
@@ -1539,7 +1644,50 @@ app.post('/api/admin/verify-otp', async (req, res) => {
     return res.status(400).json({ success: false, error: 'Verification code must be exactly 6 digits.' });
   }
 
-  const record = activeSecureOtps.get(clean);
+  // 1. Look up in-memory record, or fallback to Neon DB (serverless resilience)
+  let record = activeSecureOtps.get(clean);
+  const sql = getSql();
+
+  if (!record && sql) {
+    try {
+      const rows = await sql`
+        SELECT id, email, user_id as "userId", hashed_otp as "hashedOtp", salt,
+               created_at as "createdAt", expires_at as "expiresAt", attempts,
+               max_attempts as "maxAttempts", verified, verified_at as "verifiedAt",
+               used, used_at as "usedAt", reset_token as "resetToken",
+               reset_token_expires_at as "resetTokenExpiresAt"
+        FROM dwps_otps
+        WHERE (LOWER(email) = ${clean} OR (user_id IS NOT NULL AND LOWER(user_id) = ${clean}))
+          AND used = FALSE
+        ORDER BY created_at DESC
+        LIMIT 1
+      `;
+      if (rows && rows.length > 0) {
+        const row = rows[0];
+        record = {
+          email: row.email,
+          userId: row.userId || '',
+          hashedOtp: row.hashedOtp,
+          salt: row.salt,
+          createdAt: new Date(row.createdAt).getTime(),
+          expiresAt: new Date(row.expiresAt).getTime(),
+          attempts: Number(row.attempts) || 0,
+          maxAttempts: Number(row.maxAttempts) || 5,
+          verified: Boolean(row.verified),
+          verifiedAt: row.verifiedAt ? new Date(row.verifiedAt).getTime() : undefined,
+          used: Boolean(row.used),
+          usedAt: row.usedAt ? new Date(row.usedAt).getTime() : undefined,
+          resetToken: row.resetToken || undefined,
+          resetTokenExpiresAt: row.resetTokenExpiresAt ? new Date(row.resetTokenExpiresAt).getTime() : undefined,
+        };
+        activeSecureOtps.set(clean, record);
+        if (record.email) activeSecureOtps.set(record.email, record);
+        if (record.userId) activeSecureOtps.set(record.userId, record);
+      }
+    } catch (err) {
+      console.warn('[Admin Recovery] DB OTP lookup warning:', err);
+    }
+  }
 
   if (!record || record.used) {
     return res.status(400).json({
@@ -1574,6 +1722,17 @@ app.post('/api/admin/verify-otp', async (req, res) => {
   const computedHash = hashOtpValue(cleanOtp, record.salt);
   if (computedHash !== record.hashedOtp) {
     record.attempts += 1;
+    if (sql) {
+      try {
+        await sql`
+          UPDATE dwps_otps
+          SET attempts = attempts + 1
+          WHERE (LOWER(email) = ${record.email} OR (user_id IS NOT NULL AND LOWER(user_id) = ${record.userId}))
+            AND used = FALSE
+        `;
+      } catch (err) {}
+    }
+
     const remaining = record.maxAttempts - record.attempts;
     if (remaining <= 0) {
       activeSecureOtps.delete(clean);
@@ -1597,7 +1756,23 @@ app.post('/api/admin/verify-otp', async (req, res) => {
   record.resetToken = resetToken;
   record.resetTokenExpiresAt = Date.now() + 10 * 60 * 1000;
 
-  console.log(`[Admin Recovery] Verification code successfully validated for: ${record.email}`);
+  if (sql) {
+    try {
+      await sql`
+        UPDATE dwps_otps
+        SET verified = TRUE,
+            verified_at = CURRENT_TIMESTAMP,
+            reset_token = ${resetToken},
+            reset_token_expires_at = TO_TIMESTAMP(${record.resetTokenExpiresAt / 1000})
+        WHERE (LOWER(email) = ${record.email} OR (user_id IS NOT NULL AND LOWER(user_id) = ${record.userId}))
+          AND used = FALSE
+      `;
+    } catch (err) {
+      console.warn('[Admin Recovery] Error updating verified OTP in DB:', err);
+    }
+  }
+
+  console.log(`[${new Date().toISOString()}] [Admin Recovery] Verification code successfully validated for: ${record.email}`);
 
   return res.json({
     success: true,
@@ -1619,7 +1794,47 @@ app.post('/api/admin/reset-password', async (req, res) => {
     });
   }
 
-  const record = activeSecureOtps.get(clean);
+  // Look up record in memory or DB
+  let record = activeSecureOtps.get(clean);
+  const sql = getSql();
+
+  if (!record && sql) {
+    try {
+      const rows = await sql`
+        SELECT id, email, user_id as "userId", hashed_otp as "hashedOtp", salt,
+               created_at as "createdAt", expires_at as "expiresAt", attempts,
+               max_attempts as "maxAttempts", verified, verified_at as "verifiedAt",
+               used, used_at as "usedAt", reset_token as "resetToken",
+               reset_token_expires_at as "resetTokenExpiresAt"
+        FROM dwps_otps
+        WHERE (LOWER(email) = ${clean} OR (user_id IS NOT NULL AND LOWER(user_id) = ${clean}))
+          AND used = FALSE
+        ORDER BY created_at DESC
+        LIMIT 1
+      `;
+      if (rows && rows.length > 0) {
+        const row = rows[0];
+        record = {
+          email: row.email,
+          userId: row.userId || '',
+          hashedOtp: row.hashedOtp,
+          salt: row.salt,
+          createdAt: new Date(row.createdAt).getTime(),
+          expiresAt: new Date(row.expiresAt).getTime(),
+          attempts: Number(row.attempts) || 0,
+          maxAttempts: Number(row.maxAttempts) || 5,
+          verified: Boolean(row.verified),
+          verifiedAt: row.verifiedAt ? new Date(row.verifiedAt).getTime() : undefined,
+          used: Boolean(row.used),
+          usedAt: row.usedAt ? new Date(row.usedAt).getTime() : undefined,
+          resetToken: row.resetToken || undefined,
+          resetTokenExpiresAt: row.resetTokenExpiresAt ? new Date(row.resetTokenExpiresAt).getTime() : undefined,
+        };
+      }
+    } catch (err) {
+      console.warn('[Admin Recovery] DB lookup error during password reset:', err);
+    }
+  }
 
   if (!record || record.used) {
     return res.status(400).json({
@@ -1664,10 +1879,14 @@ app.post('/api/admin/reset-password', async (req, res) => {
   if (record.email) activeSecureOtps.delete(record.email);
   if (record.userId) activeSecureOtps.delete(record.userId);
 
-  // Update in Neon database if available
-  const sql = getSql();
+  // Invalidate in Neon DB dwps_otps and update dwps_admin_users password
   if (sql) {
     try {
+      await sql`
+        UPDATE dwps_otps
+        SET used = TRUE, used_at = CURRENT_TIMESTAMP
+        WHERE LOWER(email) = ${record.email} OR (user_id IS NOT NULL AND LOWER(user_id) = ${record.userId})
+      `;
       await sql`
         UPDATE dwps_admin_users
         SET password = ${updatedPw}
@@ -1690,7 +1909,7 @@ app.post('/api/admin/reset-password', async (req, res) => {
     serverCustomAdminPassword = updatedPw;
   }
 
-  console.log(`[Admin Recovery] Password reset successful and OTP session invalidated for: ${record.email}`);
+  console.log(`[${new Date().toISOString()}] [Admin Recovery] ✅ Password reset successful and OTP invalidated for: ${record.email}`);
 
   return res.json({
     success: true,

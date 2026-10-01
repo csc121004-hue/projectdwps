@@ -618,6 +618,30 @@ export async function initializeDatabase(): Promise<{ success: boolean; message:
       log(`[NeonDB] ✓ Seeded ${INITIAL_STAFF_MEMBERS.length} faculty and leadership members into dwps_staff.`);
     }
 
+    // 9. One-Time Passcodes (OTP) table for instant & serverless-resilient password recovery
+    await sql`
+      CREATE TABLE IF NOT EXISTS dwps_otps (
+        id VARCHAR(100) PRIMARY KEY,
+        email VARCHAR(255) NOT NULL,
+        user_id VARCHAR(100),
+        hashed_otp VARCHAR(255) NOT NULL,
+        salt VARCHAR(64) NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMPTZ NOT NULL,
+        attempts INT DEFAULT 0,
+        max_attempts INT DEFAULT 5,
+        verified BOOLEAN DEFAULT FALSE,
+        verified_at TIMESTAMPTZ,
+        used BOOLEAN DEFAULT FALSE,
+        used_at TIMESTAMPTZ,
+        reset_token VARCHAR(255),
+        reset_token_expires_at TIMESTAMPTZ
+      );
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_dwps_otps_email ON dwps_otps (LOWER(email));`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_dwps_otps_user_id ON dwps_otps (LOWER(user_id));`;
+    log('[NeonDB] ✓ Table verified/created: dwps_otps');
+
     // Retrieve verified list of tables in public schema
     const verified = await sql`
       SELECT table_name 
